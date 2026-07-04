@@ -75,11 +75,11 @@ export default function HomePage() {
                 onClick={() => setTela("carteirinha")}
               />
               <ProfileCard
-                sou="Sou"
-                titulo="Professor(a)"
-                extra="painel da turma"
-                onClick={() => setModalProfessorAberto(true)}
-              />
+                  sou="Sou"
+                  titulo="Professor(a)"
+                  extra="painel da turma"
+                  onClick={() => router.push("/professor/login")}
+                />
             </div>
           </>
         )}
