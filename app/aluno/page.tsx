@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
-import { Logo, StreakFlame, XpBar } from "@/components/brand"
+import { Logo, StreakFlame, XpBar, XpShieldIcon } from "@/components/brand"
 import { TrilhasView } from "@/components/aluno/trilhas-view"
 import { PerfilView } from "@/components/aluno/perfil-view"
 import { SquadView } from "@/components/aluno/squad-view"
@@ -11,7 +11,6 @@ import { RankingView } from "@/components/aluno/ranking-view"
 import { RecompensasView } from "@/components/aluno/recompensas-view"
 import { cn } from "@/lib/utils"
 import { Gift, Home, LogOut, Trophy, User, Users } from "lucide-react"
-
 type Tab = "trilhas" | "squad" | "ranking" | "recompensas" | "perfil"
 
 const TABS: { id: Tab; label: string; icon: typeof Home }[] = [
@@ -54,9 +53,14 @@ export default function AlunoPage() {
           <Logo className="scale-90" />
           <div className="flex items-center gap-2">
             <StreakFlame dias={aluno.streak_dias} />
-            <span className="inline-flex items-center gap-1 rounded-full bg-brand-gold/20 px-3 py-1 font-display font-extrabold text-amber-700">
-              💎 {aluno.xp_total}
-            </span>
+            <button
+              onClick={() => router.push("/aluno/trilha-recompensas")}
+              aria-label="Trilha de Recompensas"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1.5 font-display font-extrabold text-primary transition hover:bg-primary/25"
+            >
+             <XpShieldIcon className="size-4" />
+              {aluno.xp_total}
+            </button>
             <button
               onClick={sair}
               aria-label="Sair"

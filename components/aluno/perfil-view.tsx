@@ -1,14 +1,20 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import type { Aluno } from "@/lib/types"
 import { useStore } from "@/lib/store"
-import { BannerPerfil, XpBar } from "@/components/brand"
+import { BannerPerfil, XpBar, XpShieldIcon } from "@/components/brand"
 import { BADGES, META_TELA_DIARIA } from "@/lib/game"
 import { cn } from "@/lib/utils"
 import { Clock, Flame, Trophy } from "lucide-react"
+import { useRewards } from "@/hooks/useRewards"
+import { ProfileIconPicker } from "@/components/rewards/ProfileIconPicker"
+import { Button } from "@/components/ui/button"
 
 export function PerfilView({ aluno }: { aluno: Aluno }) {
   const { db } = useStore()
+  const router = useRouter()
+  const { ownedIcons, selectedIcon, escolherIcone } = useRewards(aluno.id)
   const banner = db.banners.find((b) => b.id === aluno.banner_equipado)
   const turma = db.turmas.find((t) => t.id === aluno.turma_id)
 
@@ -77,6 +83,27 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
               ? "Meta do dia batida! Você mandou muito bem hoje 🎉"
               : "Cada minutinho conta. Bora completar um exercício?"}
         </p>
+      </div>
+
+      {/* Trilha de Recompensas: ícones desbloqueados por nível */}
+      <div className="rounded-3xl bg-card p-4 shadow-sm ring-1 ring-border">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="font-display font-extrabold">Trilha de Recompensas</span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="gap-1 font-bold text-primary"
+            onClick={() => router.push("/aluno/trilha-recompensas")}
+          >
+           <XpShieldIcon className="size-3.5" />
+            Ver trilha
+          </Button>
+        </div>
+        <ProfileIconPicker
+          ownedIcons={ownedIcons}
+          selectedIcon={selectedIcon}
+          onSelect={escolherIcone}
+        />
       </div>
 
       {/* Medalhas */}

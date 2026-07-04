@@ -217,6 +217,9 @@ export function criarSeed(): DB {
           banner_equipado: bannersIniciais(xp)[Math.min(1, bannersIniciais(xp).length - 1)] ?? "b_ceu",
           badges: badgesIniciais(xp, streak),
           ultima_presenca: streak > 0 ? hoje : adicionarDias(hoje, -3),
+          recompensas_resgatadas: [],
+          icones_desbloqueados: ["default"],
+          icone_selecionado: "default",
         }
         nomeIdx++
         alunos.push(aluno)
