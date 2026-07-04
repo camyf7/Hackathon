@@ -21,6 +21,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { formatarDataCurta } from "@/lib/game"
 import {
@@ -82,6 +88,109 @@ function formatarTamanho(dataUrl: string) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// Converte uma data URL (base64) em uma blob: URL real, que os navegadores
+// conseguem exibir de forma confiável dentro de um iframe.
+function dataUrlParaBlobUrl(dataUrl: string): string {
+  const [header, base64] = dataUrl.split(",")
+  const mimeMatch = header.match(/data:(.*);base64/)
+  const mime = mimeMatch?.[1] || "application/pdf"
+
+  const binario = atob(base64)
+  const bytes = new Uint8Array(binario.length)
+  for (let i = 0; i < binario.length; i++) {
+    bytes[i] = binario.charCodeAt(i)
+  }
+
+  const blob = new Blob([bytes], { type: mime })
+  return URL.createObjectURL(blob)
+}
+
+// Componente de visualização de PDF - CORRIGIDO
+function PDFPreview({ arquivo, onClose }: { arquivo: AnexoArquivo | null; onClose: () => void }) {
+  const [loadError, setLoadError] = useState(false)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // Converte o PDF salvo (base64) em uma blob: URL de verdade ao trocar de arquivo.
+  useEffect(() => {
+    setLoadError(false)
+
+    if (!arquivo) {
+      setBlobUrl(null)
+      return
+    }
+
+    try {
+      const url = dataUrlParaBlobUrl(arquivo.dataUrl)
+      setBlobUrl(url)
+      return () => URL.revokeObjectURL(url)
+    } catch {
+      setLoadError(true)
+    }
+  }, [arquivo])
+
+  function tentarNovamente() {
+    if (!arquivo) return
+    try {
+      const url = dataUrlParaBlobUrl(arquivo.dataUrl)
+      setBlobUrl(url)
+      setLoadError(false)
+    } catch {
+      setLoadError(true)
+    }
+  }
+
+  return (
+    <Sheet open={!!arquivo} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-3xl">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <FileText className="size-4" />
+            {arquivo?.nome}
+          </SheetTitle>
+        </SheetHeader>
+        <div className="mt-4 h-[calc(100vh-120px)] w-full overflow-hidden rounded-lg border border-border bg-muted/30">
+          {arquivo && (
+            <>
+              {loadError || !blobUrl ? (
+                <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                  <FileText className="size-16 text-muted-foreground" />
+                  <p className="text-muted-foreground">
+                    Não foi possível visualizar o PDF diretamente.
+                  </p>
+                  <div className="flex gap-3">
+                    <a
+                      href={blobUrl ?? arquivo.dataUrl}
+                      download={arquivo.nome}
+                      className="rounded-2xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:opacity-90"
+                    >
+                      Baixar PDF
+                    </a>
+                    <button
+                      onClick={tentarNovamente}
+                      className="rounded-2xl bg-muted px-4 py-2 text-sm font-bold text-foreground transition hover:bg-muted/80"
+                    >
+                      Tentar novamente
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  ref={iframeRef}
+                  src={blobUrl}
+                  className="h-full w-full"
+                  title={`Visualização do PDF: ${arquivo.nome}`}
+                  onError={() => setLoadError(true)}
+                />
+              )}
+            </>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 export function AtividadesTab({ turmaId }: { turmaId: string }) {
   const { db, criarAtividade, atualizarAtividade, encerrarAtividade, removerAtividade } = useStore()
 
@@ -104,8 +213,15 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
   const [dificuldade, setDificuldade] = useState<Dificuldade>("media")
   const [arquivos, setArquivos] = useState<AnexoArquivo[]>([])
   const [enviando, setEnviando] = useState(false)
-  const [preview, setPreview] = useState<AnexoArquivo | null>(null)
+  const [previewArquivo, setPreviewArquivo] = useState<AnexoArquivo | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Atualiza os anexos quando editar uma atividade
+  useEffect(() => {
+    if (editando) {
+      setArquivos(anexosBucket[editando.id] ?? [])
+    }
+  }, [editando, anexosBucket])
 
   function abrirNova() {
     setEditando(null)
@@ -125,7 +241,6 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     setPrazo(a.prazo ?? "")
     setXp(String(a.xp))
     setDificuldade(a.dificuldade)
-    setArquivos(anexosBucket[a.id] ?? [])
     setOpen(true)
   }
 
@@ -152,6 +267,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
         })),
       )
       setArquivos((prev) => [...prev, ...novos])
+      toast.success(`${novos.length} PDF(s) anexado(s) com sucesso!`)
     } catch {
       toast.error("Não foi possível ler um dos arquivos")
     } finally {
@@ -166,8 +282,11 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
   function persistirAnexos(atividadeId: string) {
     setAnexosBucket((prev) => {
       const next = { ...prev }
-      if (arquivos.length > 0) next[atividadeId] = arquivos
-      else delete next[atividadeId]
+      if (arquivos.length > 0) {
+        next[atividadeId] = arquivos
+      } else {
+        delete next[atividadeId]
+      }
       salvarAnexosBucket(next)
       return next
     })
@@ -194,27 +313,32 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
       toast.success("Atividade atualizada!")
     } else {
       criarAtividade(turmaId, dados)
-      // a store gera o id no momento da criação; associamos os anexos à atividade recém-criada
+      // Busca a atividade recém-criada para associar os anexos
       setTimeout(() => {
-        const criada = [...db.atividades]
+        const criadas = db.atividades
           .filter((a) => a.turma_id === turmaId)
-          .sort((x, y) => (x.id < y.id ? 1 : -1))[0]
-        if (criada) persistirAnexos(criada.id)
-      }, 0)
+          .sort((a, b) => (a.criada_em < b.criada_em ? 1 : -1))
+        const criada = criadas[0]
+        if (criada && arquivos.length > 0) {
+          persistirAnexos(criada.id)
+        }
+      }, 100)
       toast.success("Atividade lançada!")
     }
     setOpen(false)
   }
 
   function excluirAtividade(id: string) {
-    removerAtividade(id)
-    setAnexosBucket((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      salvarAnexosBucket(next)
-      return next
-    })
-    toast.success("Atividade removida")
+    if (confirm("Tem certeza que deseja remover esta atividade?")) {
+      removerAtividade(id)
+      setAnexosBucket((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        salvarAnexosBucket(next)
+        return next
+      })
+      toast.success("Atividade removida")
+    }
   }
 
   return (
@@ -276,7 +400,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                           <FileText className="size-3.5 shrink-0 text-muted-foreground" />
                           <span className="max-w-[120px] truncate">{ax.nome}</span>
                           <button
-                            onClick={() => setPreview(ax)}
+                            onClick={() => setPreviewArquivo(ax)}
                             aria-label={`Visualizar ${ax.nome}`}
                             className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
                             title="Visualizar PDF"
@@ -341,6 +465,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
         )}
       </div>
 
+      {/* Dialog de criação/edição */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="rounded-3xl">
           <DialogHeader>
@@ -462,6 +587,12 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Componente de visualização de PDF */}
+      <PDFPreview
+        arquivo={previewArquivo}
+        onClose={() => setPreviewArquivo(null)}
+      />
     </div>
   )
 }
