@@ -9,11 +9,22 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import type { Aluno, Atividade, DB, Missao, Squad, TipoSquad } from "./types"
+import type {
+  Aluno,
+  Atividade,
+  CategoriaRecompensa,
+  DB,
+  Dificuldade,
+  Missao,
+  Recompensa,
+  Squad,
+  TipoSquad,
+} from "./types"
 import { criarSeed } from "./seed"
 import { adicionarDias, nivelDoXp } from "./game"
 
-const STORAGE_KEY = "trilha-plus-db-v3"
+const STORAGE_KEY = "trilha-plus-db-v5"
+const SESSION_KEY = "trilha-plus-session-v4"
 
 // ---------- helpers ----------
 function recalcAluno(a: Aluno, banners: DB["banners"]): Aluno {
@@ -40,44 +51,74 @@ function recalcSquads(db: DB): Squad[] {
   }))
 }
 
+type AuthResult = { ok: boolean; error?: string }
+
+interface AtividadeInput {
+  titulo: string
+  descricao: string
+  prazo: string | null
+  xp: number
+  dificuldade: Dificuldade
+  anexos: { nome: string; tipo: string }[]
+}
+
+interface RecompensaInput {
+  nome: string
+  descricao: string
+  categoria: CategoriaRecompensa
+  imagem: string | null
+  custo_xp: number
+  quantidade: number
+  status: "ativa" | "inativa"
+}
+
 interface StoreCtx {
   db: DB
   ready: boolean
   // sessão / filtros
+  professorId: string | null
   escolaId: string
   turmaId: string
   alunoId: string | null
   setEscolaId: (id: string) => void
   setTurmaId: (id: string) => void
   setAlunoId: (id: string | null) => void
+  // autenticação professor
+  registrarProfessor: (nome: string, email: string, senha: string) => AuthResult
+  loginProfessor: (email: string, senha: string) => AuthResult
+  logoutProfessor: () => void
+  // turmas (professor)
+  criarTurma: (nome: string, serie: string, escolaId: string) => void
+  atualizarTurma: (id: string, nome: string, serie: string, escolaId: string) => void
+  removerTurma: (id: string) => void
   // ações aluno
   responderExercicio: (alunoId: string, exercicioId: string) => { acertou: boolean; xp: number } | null
   fazerCheckin: (alunoId: string) => number | null
   equiparBanner: (alunoId: string, bannerId: string) => void
-  solicitarResgate: (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, turmaId: string) => void
-  // ações professora
+  concluirAtividade: (alunoId: string, atividadeId: string) => number | null
+  solicitarResgate: (recompensaId: string, alunoId: string) => AuthResult
+  // ações professora — alunos
   adicionarAluno: (nome: string, turmaId: string, avatar: string) => void
   atualizarAluno: (id: string, nome: string, avatar: string) => void
   removerAluno: (id: string) => void
+  moverAlunoParaTurma: (alunoId: string, turmaId: string) => void
+  // atividades (professor)
+  criarAtividade: (turmaId: string, dados: AtividadeInput) => void
+  atualizarAtividade: (id: string, dados: AtividadeInput) => void
+  encerrarAtividade: (id: string) => void
+  removerAtividade: (id: string) => void
+  // recompensas (professor)
+  criarRecompensa: (turmaId: string, dados: RecompensaInput) => void
+  atualizarRecompensa: (id: string, dados: RecompensaInput) => void
+  alternarStatusRecompensa: (id: string) => void
+  removerRecompensa: (id: string) => void
+  // squads / presença / missões
   criarSquad: (turmaId: string, nome: string, alunosIds: string[]) => void
   removerSquad: (squadId: string) => void
   gerarSquadsAuto: (turmaId: string) => void
   marcarPresenca: (alunoId: string, data: string, estado: "presente" | "falta" | "justificada") => void
   postarMissao: (turmaId: string, squadId: string | null, titulo: string, descricao: string, xp: number) => void
   aprovarResgate: (resgateId: string, aprovar: boolean) => void
-  // atividades (professora lança, aluno cumpre)
-  criarAtividade: (
-    turmaId: string,
-    trilhaId: string,
-    titulo: string,
-    descricao: string,
-    nivelAlvo: number,
-    prazo: string | null,
-    xpBonus: number,
-  ) => void
-  encerrarAtividade: (atividadeId: string) => void
-  removerAtividade: (atividadeId: string) => void
-  verificarAtividadesAluno: (alunoId: string) => void
   // demo
   avancarDia: () => void
   simularPresenca: () => void
@@ -90,41 +131,57 @@ const Ctx = createContext<StoreCtx | null>(null)
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [db, setDb] = useState<DB>(() => criarSeed())
   const [ready, setReady] = useState(false)
+  const [professorId, setProfessorId] = useState<string | null>(null)
   const [escolaId, setEscolaIdState] = useState("")
   const [turmaId, setTurmaIdState] = useState("")
   const [alunoId, setAlunoId] = useState<string | null>(null)
 
   // carregar do localStorage
   useEffect(() => {
+    let base: DB
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
-        const parsed = JSON.parse(raw) as DB
-        // garante compatibilidade com dados salvos antes da feature de atividades
-        if (!parsed.atividades) parsed.atividades = []
-        setDb(parsed)
-        setEscolaIdState(parsed.escolas[0]?.id ?? "")
-        setTurmaIdState(parsed.turmas.find((t) => t.escola_id === parsed.escolas[0]?.id)?.id ?? "")
+        base = JSON.parse(raw) as DB
       } else {
-        const seed = criarSeed()
-        setDb(seed)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(seed))
-        setEscolaIdState(seed.escolas[0]?.id ?? "")
-        setTurmaIdState(seed.turmas.find((t) => t.escola_id === seed.escolas[0]?.id)?.id ?? "")
+        base = criarSeed()
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(base))
       }
     } catch {
-      const seed = criarSeed()
-      setDb(seed)
-      setEscolaIdState(seed.escolas[0]?.id ?? "")
-      setTurmaIdState(seed.turmas[0]?.id ?? "")
+      base = criarSeed()
+    }
+    setDb(base)
+
+    // sessão
+    try {
+      const rawSession = localStorage.getItem(SESSION_KEY)
+      const session = rawSession ? (JSON.parse(rawSession) as { professorId?: string | null }) : null
+      const pid = session?.professorId && base.professores.some((p) => p.id === session.professorId)
+        ? session.professorId
+        : null
+      setProfessorId(pid ?? null)
+      const escInicial = base.escolas[0]?.id ?? ""
+      setEscolaIdState(escInicial)
+      const turmasVisiveis = pid
+        ? base.turmas.filter((t) => t.professor_id === pid)
+        : base.turmas.filter((t) => t.escola_id === escInicial)
+      setTurmaIdState(turmasVisiveis[0]?.id ?? "")
+    } catch {
+      setEscolaIdState(base.escolas[0]?.id ?? "")
+      setTurmaIdState(base.turmas[0]?.id ?? "")
     }
     setReady(true)
   }, [])
 
-  // persistir
+  // persistir dados
   useEffect(() => {
     if (ready) localStorage.setItem(STORAGE_KEY, JSON.stringify(db))
   }, [db, ready])
+
+  // persistir sessão
+  useEffect(() => {
+    if (ready) localStorage.setItem(SESSION_KEY, JSON.stringify({ professorId }))
+  }, [professorId, ready])
 
   const setEscolaId = useCallback(
     (id: string) => {
@@ -135,6 +192,100 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [db.turmas],
   )
   const setTurmaId = useCallback((id: string) => setTurmaIdState(id), [])
+
+  // ---------- autenticação professor ----------
+  const registrarProfessor = useCallback((nome: string, email: string, senha: string): AuthResult => {
+    const emailNorm = email.trim().toLowerCase()
+    if (!nome.trim() || !emailNorm || !senha) return { ok: false, error: "Preencha todos os campos." }
+    if (senha.length < 4) return { ok: false, error: "A senha deve ter ao menos 4 caracteres." }
+    let result: AuthResult = { ok: true }
+    setDb((prev) => {
+      if (prev.professores.some((p) => p.email.toLowerCase() === emailNorm)) {
+        result = { ok: false, error: "Já existe uma conta com este e-mail." }
+        return prev
+      }
+      const novo = {
+        id: `prof-${Date.now()}`,
+        nome: nome.trim(),
+        email: emailNorm,
+        senha,
+        criado_em: new Date().toISOString(),
+      }
+      setProfessorId(novo.id)
+      const primeira = prev.turmas.find((t) => t.professor_id === novo.id)
+      setTurmaIdState(primeira?.id ?? "")
+      return { ...prev, professores: [...prev.professores, novo] }
+    })
+    return result
+  }, [])
+
+  const loginProfessor = useCallback((email: string, senha: string): AuthResult => {
+    const emailNorm = email.trim().toLowerCase()
+    let result: AuthResult = { ok: true }
+    setDb((prev) => {
+      const prof = prev.professores.find((p) => p.email.toLowerCase() === emailNorm)
+      if (!prof || prof.senha !== senha) {
+        result = { ok: false, error: "E-mail ou senha inválidos." }
+        return prev
+      }
+      setProfessorId(prof.id)
+      const primeira = prev.turmas.find((t) => t.professor_id === prof.id)
+      setTurmaIdState(primeira?.id ?? "")
+      return prev
+    })
+    return result
+  }, [])
+
+  const logoutProfessor = useCallback(() => {
+    setProfessorId(null)
+  }, [])
+
+  // ---------- turmas ----------
+  const criarTurma = useCallback(
+    (nome: string, serie: string, escId: string) => {
+      setDb((prev) => {
+        if (!professorId) return prev
+        const id = `turma-${Date.now()}`
+        const nova = {
+          id,
+          professor_id: professorId,
+          escola_id: escId || prev.escolas[0]?.id || "",
+          nome,
+          serie,
+          criada_em: new Date().toISOString(),
+        }
+        setTurmaIdState(id)
+        return { ...prev, turmas: [...prev.turmas, nova] }
+      })
+    },
+    [professorId],
+  )
+
+  const atualizarTurma = useCallback((id: string, nome: string, serie: string, escId: string) => {
+    setDb((prev) => ({
+      ...prev,
+      turmas: prev.turmas.map((t) => (t.id === id ? { ...t, nome, serie, escola_id: escId } : t)),
+    }))
+  }, [])
+
+  const removerTurma = useCallback((id: string) => {
+    setDb((prev) => {
+      const alunosIds = prev.alunos.filter((a) => a.turma_id === id).map((a) => a.id)
+      return {
+        ...prev,
+        turmas: prev.turmas.filter((t) => t.id !== id),
+        alunos: prev.alunos.filter((a) => a.turma_id !== id),
+        squads: prev.squads.filter((s) => s.turma_id !== id),
+        atividades: prev.atividades.filter((a) => a.turma_id !== id),
+        recompensas: prev.recompensas.filter((r) => r.turma_id !== id),
+        resgates: prev.resgates.filter((r) => r.turma_id !== id),
+        missoes: prev.missoes.filter((m) => m.turma_id !== id),
+        progresso: prev.progresso.filter((p) => !alunosIds.includes(p.aluno_id)),
+        presencas: prev.presencas.filter((p) => !alunosIds.includes(p.aluno_id)),
+      }
+    })
+    setTurmaIdState((atual) => (atual === id ? "" : atual))
+  }, [])
 
   // ---------- ações aluno ----------
   const responderExercicio = useCallback((aid: string, exId: string) => {
@@ -155,7 +306,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (p.aluno_id !== aid || p.trilha_id !== trilha.id) return p
         if (p.exercicios_completos.includes(exId)) return p
         const completos = [...p.exercicios_completos, exId]
-        // sobe de nível na trilha se completou o exercício do nível atual
         const nivelAtual =
           exercicio.nivel >= p.nivel_atual ? Math.min(trilha.niveis, p.nivel_atual + 1) : p.nivel_atual
         return { ...p, exercicios_completos: completos, nivel_atual: nivelAtual }
@@ -173,7 +323,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const hoje = prev.data_atual
       const aluno = prev.alunos.find((a) => a.id === aid)
       if (!aluno) return prev
-      // já fez check-in hoje?
       const jaPresente = prev.presencas.some((p) => p.aluno_id === aid && p.data === hoje && p.presente)
       const ontem = adicionarDias(hoje, -1)
       const veioOntem = aluno.ultima_presenca === ontem || aluno.streak_dias > 0
@@ -215,34 +364,82 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
-  const solicitarResgate = useCallback(
-    (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, tId: string) => {
-      setDb((prev) => {
-        const jaExiste = prev.resgates.some(
-          (r) => r.recompensa_id === recompensaId && r.solicitante_id === solicitanteId && r.status === "pendente",
-        )
-        if (jaExiste) return prev
-        return {
-          ...prev,
-          resgates: [
-            ...prev.resgates,
-            {
-              id: `res-${Date.now()}`,
-              recompensa_id: recompensaId,
-              solicitante_id: solicitanteId,
-              solicitante_tipo: tipo,
-              turma_id: tId,
-              status: "pendente",
-              data: prev.data_atual,
-            },
-          ],
-        }
-      })
-    },
-    [],
-  )
+  const concluirAtividade = useCallback((aid: string, atividadeId: string) => {
+    let xpGanho: number | null = null
+    setDb((prev) => {
+      const atividade = prev.atividades.find((a) => a.id === atividadeId)
+      const aluno = prev.alunos.find((a) => a.id === aid)
+      if (!atividade || !aluno) return prev
+      if (atividade.status !== "aberta") return prev
+      if (atividade.alunos_concluidos.includes(aid)) return prev
+      xpGanho = atividade.xp
 
-  // ---------- ações professora ----------
+      const atividades = prev.atividades.map((a) =>
+        a.id === atividadeId ? { ...a, alunos_concluidos: [...a.alunos_concluidos, aid] } : a,
+      )
+      const alunos = prev.alunos.map((a) =>
+        a.id === aid
+          ? recalcAluno(
+              { ...a, xp_total: a.xp_total + atividade.xp, atividades_concluidas: [...a.atividades_concluidas, atividadeId] },
+              prev.banners,
+            )
+          : a,
+      )
+      const next = { ...prev, atividades, alunos }
+      return { ...next, squads: recalcSquads(next) }
+    })
+    return xpGanho
+  }, [])
+
+  const solicitarResgate = useCallback((recompensaId: string, aid: string): AuthResult => {
+    let result: AuthResult = { ok: true }
+    setDb((prev) => {
+      const recompensa = prev.recompensas.find((r) => r.id === recompensaId)
+      const aluno = prev.alunos.find((a) => a.id === aid)
+      if (!recompensa || !aluno) {
+        result = { ok: false, error: "Recompensa indisponível." }
+        return prev
+      }
+      if (recompensa.status !== "ativa" || recompensa.quantidade <= 0) {
+        result = { ok: false, error: "Recompensa esgotada." }
+        return prev
+      }
+      if (aluno.xp_total < recompensa.custo_xp) {
+        result = { ok: false, error: "XP insuficiente." }
+        return prev
+      }
+      const jaExiste = prev.resgates.some(
+        (r) => r.recompensa_id === recompensaId && r.solicitante_id === aid && r.status === "pendente",
+      )
+      if (jaExiste) {
+        result = { ok: false, error: "Você já tem um pedido pendente." }
+        return prev
+      }
+      const recompensas = prev.recompensas.map((r) =>
+        r.id === recompensaId ? { ...r, quantidade: r.quantidade - 1 } : r,
+      )
+      return {
+        ...prev,
+        recompensas,
+        resgates: [
+          ...prev.resgates,
+          {
+            id: `res-${Date.now()}`,
+            recompensa_id: recompensaId,
+            solicitante_id: aid,
+            solicitante_tipo: "aluno" as const,
+            turma_id: aluno.turma_id,
+            custo_xp: recompensa.custo_xp,
+            status: "pendente" as const,
+            data: prev.data_atual,
+          },
+        ],
+      }
+    })
+    return result
+  }, [])
+
+  // ---------- ações professora — alunos ----------
   const adicionarAluno = useCallback((nome: string, tId: string, avatar: string) => {
     setDb((prev) => {
       const novo: Aluno = {
@@ -261,6 +458,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         banner_equipado: "b_ceu",
         badges: [],
         ultima_presenca: null,
+        atividades_concluidas: [],
       }
       const progresso = [
         ...prev.progresso,
@@ -292,22 +490,124 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         alunos: prev.alunos.filter((a) => a.id !== id),
         progresso: prev.progresso.filter((p) => p.aluno_id !== id),
         presencas: prev.presencas.filter((p) => p.aluno_id !== id),
-        squads,
-        atividades: prev.atividades.map((at) => ({
-          ...at,
-          alunos_concluidos: at.alunos_concluidos.filter((x) => x !== id),
+        atividades: prev.atividades.map((a) => ({
+          ...a,
+          alunos_concluidos: a.alunos_concluidos.filter((x) => x !== id),
         })),
+        squads,
       }
       return { ...next, squads: recalcSquads(next) }
     })
   }, [])
 
+  const moverAlunoParaTurma = useCallback((aid: string, tId: string) => {
+    setDb((prev) => {
+      const squads = prev.squads
+        .map((sq) => ({ ...sq, alunos_ids: sq.alunos_ids.filter((x) => x !== aid) }))
+        .filter((sq) => sq.alunos_ids.length > 0)
+      const alunos = prev.alunos.map((a) =>
+        a.id === aid ? { ...a, turma_id: tId, squad_id: null } : a,
+      )
+      const next = { ...prev, alunos, squads }
+      return { ...next, squads: recalcSquads(next) }
+    })
+  }, [])
+
+  // ---------- atividades ----------
+  const criarAtividade = useCallback((tId: string, dados: AtividadeInput) => {
+    setDb((prev) => {
+      const nova: Atividade = {
+        id: `atv-${Date.now()}`,
+        turma_id: tId,
+        titulo: dados.titulo,
+        descricao: dados.descricao,
+        prazo: dados.prazo,
+        xp: dados.xp,
+        dificuldade: dados.dificuldade,
+        anexos: dados.anexos.map((ax, i) => ({ id: `ax-${Date.now()}-${i}`, nome: ax.nome, tipo: ax.tipo })),
+        status: "aberta",
+        criada_em: new Date().toISOString(),
+        alunos_concluidos: [],
+      }
+      return { ...prev, atividades: [...prev.atividades, nova] }
+    })
+  }, [])
+
+  const atualizarAtividade = useCallback((id: string, dados: AtividadeInput) => {
+    setDb((prev) => ({
+      ...prev,
+      atividades: prev.atividades.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              titulo: dados.titulo,
+              descricao: dados.descricao,
+              prazo: dados.prazo,
+              xp: dados.xp,
+              dificuldade: dados.dificuldade,
+              anexos: dados.anexos.map((ax, i) => ({ id: `ax-${Date.now()}-${i}`, nome: ax.nome, tipo: ax.tipo })),
+            }
+          : a,
+      ),
+    }))
+  }, [])
+
+  const encerrarAtividade = useCallback((id: string) => {
+    setDb((prev) => ({
+      ...prev,
+      atividades: prev.atividades.map((a) =>
+        a.id === id ? { ...a, status: a.status === "aberta" ? "encerrada" : "aberta" } : a,
+      ),
+    }))
+  }, [])
+
+  const removerAtividade = useCallback((id: string) => {
+    setDb((prev) => ({ ...prev, atividades: prev.atividades.filter((a) => a.id !== id) }))
+  }, [])
+
+  // ---------- recompensas ----------
+  const criarRecompensa = useCallback((tId: string, dados: RecompensaInput) => {
+    setDb((prev) => {
+      const nova: Recompensa = {
+        id: `rec-${Date.now()}`,
+        turma_id: tId,
+        criada_em: new Date().toISOString(),
+        ...dados,
+      }
+      return { ...prev, recompensas: [...prev.recompensas, nova] }
+    })
+  }, [])
+
+  const atualizarRecompensa = useCallback((id: string, dados: RecompensaInput) => {
+    setDb((prev) => ({
+      ...prev,
+      recompensas: prev.recompensas.map((r) => (r.id === id ? { ...r, ...dados } : r)),
+    }))
+  }, [])
+
+  const alternarStatusRecompensa = useCallback((id: string) => {
+    setDb((prev) => ({
+      ...prev,
+      recompensas: prev.recompensas.map((r) =>
+        r.id === id ? { ...r, status: r.status === "ativa" ? "inativa" : "ativa" } : r,
+      ),
+    }))
+  }, [])
+
+  const removerRecompensa = useCallback((id: string) => {
+    setDb((prev) => ({
+      ...prev,
+      recompensas: prev.recompensas.filter((r) => r.id !== id),
+      resgates: prev.resgates.filter((r) => r.recompensa_id !== id),
+    }))
+  }, [])
+
+  // ---------- squads ----------
   const criarSquad = useCallback((tId: string, nome: string, alunosIds: string[]) => {
     setDb((prev) => {
       const tipo: TipoSquad = alunosIds.length === 2 ? "dupla" : alunosIds.length === 3 ? "trio" : "squad"
       const squadId = `${tId}-sq${Date.now()}`
       const emojis = ["🚀", "⭐", "🐉", "🔥", "🌈", "⚡"]
-      // remove alunos de outros squads
       const squadsLimpos = prev.squads
         .map((sq) => ({ ...sq, alunos_ids: sq.alunos_ids.filter((x) => !alunosIds.includes(x)) }))
         .filter((sq) => sq.alunos_ids.length > 0)
@@ -339,7 +639,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const gerarSquadsAuto = useCallback((tId: string) => {
     setDb((prev) => {
       const alunosTurma = [...prev.alunos.filter((a) => a.turma_id === tId)]
-      // ordena por XP e intercala para misturar níveis de engajamento
       alunosTurma.sort((a, b) => b.xp_total - a.xp_total)
       const intercalado: Aluno[] = []
       let i = 0
@@ -390,7 +689,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             )
           : [...prev.presencas, { aluno_id: aid, data, presente, justificada }]
 
-        // recomputa streak simples do aluno
         const alunos = prev.alunos.map((a) => {
           if (a.id !== aid) return a
           const dias = presencas
@@ -430,87 +728,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const aprovarResgate = useCallback((resgateId: string, aprovar: boolean) => {
-    setDb((prev) => ({
-      ...prev,
-      resgates: prev.resgates.map((r) =>
-        r.id === resgateId ? { ...r, status: aprovar ? "aprovada" : "negada" } : r,
-      ),
-    }))
-  }, [])
-
-  // ---------- atividades (professora lança, aluno cumpre) ----------
-  const criarAtividade = useCallback(
-    (
-      tId: string,
-      trilhaId: string,
-      titulo: string,
-      descricao: string,
-      nivelAlvo: number,
-      prazo: string | null,
-      xpBonus: number,
-    ) => {
-      setDb((prev) => {
-        const nova: Atividade = {
-          id: `at-${Date.now()}`,
-          turma_id: tId,
-          trilha_id: trilhaId,
-          titulo,
-          descricao,
-          nivel_alvo: nivelAlvo,
-          prazo,
-          xp_bonus: xpBonus,
-          criada_em: prev.data_atual,
-          status: "aberta",
-          alunos_concluidos: [],
-        }
-        return { ...prev, atividades: [...prev.atividades, nova] }
-      })
-    },
-    [],
-  )
-
-  const encerrarAtividade = useCallback((id: string) => {
-    setDb((prev) => ({
-      ...prev,
-      atividades: prev.atividades.map((a) => (a.id === id ? { ...a, status: "encerrada" as const } : a)),
-    }))
-  }, [])
-
-  const removerAtividade = useCallback((id: string) => {
-    setDb((prev) => ({ ...prev, atividades: prev.atividades.filter((a) => a.id !== id) }))
-  }, [])
-
-  // Verifica se o aluno já atingiu o nível-alvo de alguma atividade aberta
-  // da própria turma e, se sim, concede o XP bônus uma única vez.
-  const verificarAtividadesAluno = useCallback((aid: string) => {
     setDb((prev) => {
-      const aluno = prev.alunos.find((a) => a.id === aid)
-      if (!aluno) return prev
-
-      let xpGanho = 0
-      let mudou = false
-
-      const atividades = prev.atividades.map((at) => {
-        if (at.status !== "aberta") return at
-        if (at.turma_id !== aluno.turma_id) return at
-        if (at.alunos_concluidos.includes(aid)) return at
-
-        const prog = prev.progresso.find((p) => p.aluno_id === aid && p.trilha_id === at.trilha_id)
-        if (!prog || prog.nivel_atual < at.nivel_alvo) return at
-
-        mudou = true
-        xpGanho += at.xp_bonus
-        return { ...at, alunos_concluidos: [...at.alunos_concluidos, aid] }
-      })
-
-      if (!mudou) return prev
-
-      const alunos = prev.alunos.map((a) =>
-        a.id === aid ? recalcAluno({ ...a, xp_total: a.xp_total + xpGanho }, prev.banners) : a,
+      const resgate = prev.resgates.find((r) => r.id === resgateId)
+      if (!resgate || resgate.status !== "pendente") return prev
+      const resgates = prev.resgates.map((r) =>
+        r.id === resgateId ? { ...r, status: aprovar ? ("aprovada" as const) : ("negada" as const) } : r,
       )
-
-      const next = { ...prev, atividades, alunos }
-      return { ...next, squads: recalcSquads(next) }
+      if (aprovar) {
+        // desconta o XP travado do aluno
+        const alunos = prev.alunos.map((a) =>
+          a.id === resgate.solicitante_id
+            ? recalcAluno({ ...a, xp_total: Math.max(0, a.xp_total - resgate.custo_xp) }, prev.banners)
+            : a,
+        )
+        const next = { ...prev, resgates, alunos }
+        return { ...next, squads: recalcSquads(next) }
+      }
+      // negado: devolve a unidade reservada da recompensa
+      const recompensas = prev.recompensas.map((r) =>
+        r.id === resgate.recompensa_id ? { ...r, quantidade: r.quantidade + 1 } : r,
+      )
+      return { ...prev, resgates, recompensas }
     })
   }, [])
 
@@ -518,7 +756,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const avancarDia = useCallback(() => {
     setDb((prev) => {
       const novaData = adicionarDias(prev.data_atual, 1)
-      // reseta tempo de tela do dia
       const alunos = prev.alunos.map((a) => ({ ...a, tempo_tela_minutos_hoje: 0 }))
       return { ...prev, data_atual: novaData, alunos }
     })
@@ -559,6 +796,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const resetarDados = useCallback(() => {
     const seed = criarSeed()
     setDb(seed)
+    setProfessorId(null)
     setEscolaIdState(seed.escolas[0]?.id ?? "")
     setTurmaIdState(seed.turmas.find((t) => t.escola_id === seed.escolas[0]?.id)?.id ?? "")
     setAlunoId(null)
@@ -569,40 +807,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       db,
       ready,
+      professorId,
       escolaId,
       turmaId,
       alunoId,
       setEscolaId,
       setTurmaId,
       setAlunoId,
+      registrarProfessor,
+      loginProfessor,
+      logoutProfessor,
+      criarTurma,
+      atualizarTurma,
+      removerTurma,
       responderExercicio,
       fazerCheckin,
       equiparBanner,
+      concluirAtividade,
       solicitarResgate,
       adicionarAluno,
       atualizarAluno,
       removerAluno,
+      moverAlunoParaTurma,
+      criarAtividade,
+      atualizarAtividade,
+      encerrarAtividade,
+      removerAtividade,
+      criarRecompensa,
+      atualizarRecompensa,
+      alternarStatusRecompensa,
+      removerRecompensa,
       criarSquad,
       removerSquad,
       gerarSquadsAuto,
       marcarPresenca,
       postarMissao,
       aprovarResgate,
-      criarAtividade,
-      encerrarAtividade,
-      removerAtividade,
-      verificarAtividadesAluno,
       avancarDia,
       simularPresenca,
       simularXP,
       resetarDados,
     }),
     [
-      db, ready, escolaId, turmaId, alunoId, setEscolaId, setTurmaId,
-      responderExercicio, fazerCheckin, equiparBanner, solicitarResgate,
-      adicionarAluno, atualizarAluno, removerAluno, criarSquad, removerSquad,
-      gerarSquadsAuto, marcarPresenca, postarMissao, aprovarResgate,
-      criarAtividade, encerrarAtividade, removerAtividade, verificarAtividadesAluno,
+      db, ready, professorId, escolaId, turmaId, alunoId, setEscolaId, setTurmaId,
+      registrarProfessor, loginProfessor, logoutProfessor, criarTurma, atualizarTurma, removerTurma,
+      responderExercicio, fazerCheckin, equiparBanner, concluirAtividade, solicitarResgate,
+      adicionarAluno, atualizarAluno, removerAluno, moverAlunoParaTurma,
+      criarAtividade, atualizarAtividade, encerrarAtividade, removerAtividade,
+      criarRecompensa, atualizarRecompensa, alternarStatusRecompensa, removerRecompensa,
+      criarSquad, removerSquad, gerarSquadsAuto, marcarPresenca, postarMissao, aprovarResgate,
       avancarDia, simularPresenca, simularXP, resetarDados,
     ],
   )

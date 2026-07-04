@@ -1,19 +1,22 @@
-import { cn } from "@/lib/utils"
-import { Flame } from "lucide-react"
-import type { Banner } from "@/lib/types"
-import { progressoNivel, xpNoNivel, XP_POR_NIVEL } from "@/lib/game"
+import Image from "next/image";
+import { cn } from "@/lib/utils";
+import { Flame } from "lucide-react";
+import type { Banner } from "@/lib/types";
+import { progressoNivel, xpNoNivel, XP_POR_NIVEL } from "@/lib/game";
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <div className={cn("flex items-center gap-2 font-display font-extrabold", className)}>
-      <span className="grid size-9 place-items-center rounded-2xl bg-primary text-primary-foreground text-xl shadow-[0_4px_0_0_oklch(0.62_0.2_135)]">
-        🎯
-      </span>
-      <span className="text-2xl tracking-tight text-foreground">
-        Trilha<span className="text-primary">+</span>
-      </span>
+    <div className={cn("flex items-center gap-3", className)}>
+      <Image
+        src="/logo.png"
+        alt="Trilha+"
+        width={160}
+        height={44}
+        priority
+        className="h-11 w-auto object-contain"
+      />
     </div>
-  )
+  );
 }
 
 export function StreakFlame({ dias, className }: { dias: number; className?: string }) {

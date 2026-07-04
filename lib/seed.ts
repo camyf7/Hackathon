@@ -1,18 +1,25 @@
 import type {
   Aluno,
+  Atividade,
   Banner,
   DB,
   Escola,
   Exercicio,
   Missao,
   Presenca,
+  Professor,
   ProgressoTrilha,
-  RecompensaReal,
+  Recompensa,
   Squad,
   Trilha,
   Turma,
 } from "./types"
 import { adicionarDias, hojeISO, nivelDoXp } from "./game"
+
+export const PROFESSOR_DEMO = {
+  email: "professor@trilha.com",
+  senha: "123456",
+}
 
 // ---------- Trilhas / Exercícios ----------
 function ex(
@@ -120,12 +127,76 @@ const banners: Banner[] = [
   { id: "b_dragao", nome: "Sopro do Dragão", raridade: "lendario", custo_xp: 2500, gradiente: "bg-gradient-to-r from-red-500 via-orange-500 to-amber-400" },
 ]
 
-// ---------- Recompensas do mundo real ----------
-const recompensas_reais: RecompensaReal[] = [
-  { id: "r_ponto", nome: "Ponto extra na disciplina", emoji: "➕", criterio_xp: 500 },
-  { id: "r_bombom", nome: "Caixa de bombom", emoji: "🍬", criterio_xp: 700 },
-  { id: "r_musica", nome: "Escolher a música do intervalo", emoji: "🎵", criterio_xp: 400 },
-  { id: "r_certificado", nome: "Certificado de destaque", emoji: "📜", criterio_xp: 1000 },
+// ---------- Recompensas do mundo real (modelo por turma) ----------
+// Cada turma recebe um conjunto inicial de recompensas ativas.
+const RECOMPENSAS_MODELO: Omit<Recompensa, "id" | "turma_id" | "criada_em">[] = [
+  {
+    nome: "Ponto extra na avaliação",
+    descricao: "Um ponto adicional na próxima prova bimestral.",
+    categoria: "ponto_extra",
+    imagem: null,
+    custo_xp: 500,
+    quantidade: 20,
+    status: "ativa",
+  },
+  {
+    nome: "Sessão de cinema da turma",
+    descricao: "Tarde de filme e pipoca com os colegas.",
+    categoria: "cinema",
+    imagem: null,
+    custo_xp: 900,
+    quantidade: 5,
+    status: "ativa",
+  },
+  {
+    nome: "Dia sem uniforme",
+    descricao: "Venha à aula com roupa livre por um dia.",
+    categoria: "dia_sem_uniforme",
+    imagem: null,
+    custo_xp: 400,
+    quantidade: 10,
+    status: "ativa",
+  },
+  {
+    nome: "Certificado de destaque",
+    descricao: "Certificado impresso de reconhecimento.",
+    categoria: "certificado",
+    imagem: null,
+    custo_xp: 1000,
+    quantidade: 3,
+    status: "ativa",
+  },
+  {
+    nome: "Kit de material escolar",
+    descricao: "Caderno, canetas e itens de papelaria.",
+    categoria: "material",
+    imagem: null,
+    custo_xp: 700,
+    quantidade: 8,
+    status: "ativa",
+  },
+]
+
+// ---------- Atividades modelo (por turma) ----------
+const ATIVIDADES_MODELO: Omit<Atividade, "id" | "turma_id" | "criada_em" | "alunos_concluidos">[] = [
+  {
+    titulo: "Lista de exercícios de frações",
+    descricao: "Resolva a lista 3 do capítulo de frações e envie no caderno.",
+    prazo: null,
+    xp: 60,
+    dificuldade: "media",
+    anexos: [{ id: "ax1", nome: "lista-fracoes.pdf", tipo: "pdf" }],
+    status: "aberta",
+  },
+  {
+    titulo: "Leitura do texto 'O menino e o mar'",
+    descricao: "Leia o texto e responda as perguntas de interpretação.",
+    prazo: null,
+    xp: 30,
+    dificuldade: "facil",
+    anexos: [],
+    status: "aberta",
+  },
 ]
 
 // ---------- Geração de escolas, turmas, alunos e squads ----------
@@ -153,6 +224,17 @@ function badgesIniciais(xp: number, streak: number): string[] {
 
 export function criarSeed(): DB {
   const hoje = hojeISO()
+
+  const professores: Professor[] = [
+    {
+      id: "prof_demo",
+      nome: "Prof. Marina Andrade",
+      email: PROFESSOR_DEMO.email,
+      senha: PROFESSOR_DEMO.senha,
+      criado_em: new Date().toISOString(),
+    },
+  ]
+
   const escolas: Escola[] = [
     { id: "esc1", nome: "EM Prof. Manoel de Barros" },
     { id: "esc2", nome: "EM Tabatinga do Mar" },
@@ -163,6 +245,8 @@ export function criarSeed(): DB {
   const squads: Squad[] = []
   const progresso: ProgressoTrilha[] = []
   const presencas: Presenca[] = []
+  const atividades: Atividade[] = []
+  const recompensas: Recompensa[] = []
 
   const seriesPorEscola = [
     ["6º A", "7º B", "9º A"],
@@ -178,9 +262,32 @@ export function criarSeed(): DB {
       const turmaId = `${escola.id}-t${ti}`
       turmas.push({
         id: turmaId,
+        professor_id: "prof_demo",
         escola_id: escola.id,
         nome: serieNome,
         serie: serieNome,
+        criada_em: new Date().toISOString(),
+      })
+
+      // recompensas iniciais da turma
+      RECOMPENSAS_MODELO.forEach((r, ri) => {
+        recompensas.push({
+          ...r,
+          id: `${turmaId}-rec${ri}`,
+          turma_id: turmaId,
+          criada_em: new Date().toISOString(),
+        })
+      })
+
+      // atividades iniciais da turma
+      ATIVIDADES_MODELO.forEach((a, ai) => {
+        atividades.push({
+          ...a,
+          id: `${turmaId}-atv${ai}`,
+          turma_id: turmaId,
+          criada_em: new Date().toISOString(),
+          alunos_concluidos: [],
+        })
       })
 
       const qtd = 5 + ((ei + ti) % 2) // 5 ou 6 alunos
@@ -217,6 +324,7 @@ export function criarSeed(): DB {
           banner_equipado: bannersIniciais(xp)[Math.min(1, bannersIniciais(xp).length - 1)] ?? "b_ceu",
           badges: badgesIniciais(xp, streak),
           ultima_presenca: streak > 0 ? hoje : adicionarDias(hoje, -3),
+          atividades_concluidas: [],
         }
         nomeIdx++
         alunos.push(aluno)
@@ -293,6 +401,7 @@ export function criarSeed(): DB {
   }))
 
   return {
+    professores,
     escolas,
     turmas,
     alunos,
@@ -300,11 +409,11 @@ export function criarSeed(): DB {
     trilhas,
     progresso,
     presencas,
+    atividades,
     banners,
-    recompensas_reais,
+    recompensas,
     resgates: [],
     missoes,
-    atividades: [],
     data_atual: hoje,
   }
 }

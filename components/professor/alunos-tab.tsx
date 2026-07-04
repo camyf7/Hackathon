@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useStore } from "@/lib/store"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -12,14 +12,45 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import { Pencil, Plus, Trash2, UserPlus } from "lucide-react"
+import { IdCard, Pencil, Plus, Trash2, Trophy, UserPlus, Users } from "lucide-react"
 import { toast } from "sonner"
 import type { Aluno } from "@/lib/types"
 
-const AVATARES = ["🦊", "🐼", "🦁", "🐨", "🐸", "🦉", "🐙", "🦄", "🐵", "🐯", "🐧", "🦖", "🐢", "🐝", "🦋", "🐰"]
+const RA_STORAGE_KEY = "trilha-plus-ra-v1"
+
+// paleta de cores para o avatar de iniciais — sem emoji, gerada por hash do id
+const CORES_AVATAR = [
+  "bg-brand-green/15 text-green-700",
+  "bg-brand-turquoise/15 text-cyan-700",
+  "bg-brand-purple/15 text-purple-700",
+  "bg-brand-orange/15 text-orange-700",
+  "bg-brand-pink/15 text-pink-700",
+  "bg-brand-gold/20 text-amber-700",
+]
+
+function iniciais(nome: string) {
+  const partes = nome.trim().split(/\s+/)
+  const primeiro = partes[0]?.[0] ?? ""
+  const ultimo = partes.length > 1 ? partes[partes.length - 1][0] : ""
+  return (primeiro + ultimo).toUpperCase()
+}
+
+function corPara(id: string) {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  return CORES_AVATAR[hash % CORES_AVATAR.length]
+}
+
+function carregarRas(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(RA_STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {}
+  } catch {
+    return {}
+  }
+}
 
 export function AlunosTab({ turmaId }: { turmaId: string }) {
   const { db, adicionarAluno, atualizarAluno, removerAluno } = useStore()
@@ -27,22 +58,40 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
     .filter((a) => a.turma_id === turmaId)
     .sort((a, b) => a.nome.localeCompare(b.nome))
 
+  const [ras, setRas] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    setRas(carregarRas())
+  }, [])
+
+  function salvarRa(alunoId: string, ra: string) {
+    setRas((prev) => {
+      const next = { ...prev, [alunoId]: ra }
+      try {
+        localStorage.setItem(RA_STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        // ignora falha de storage
+      }
+      return next
+    })
+  }
+
   const [open, setOpen] = useState(false)
   const [editando, setEditando] = useState<Aluno | null>(null)
   const [nome, setNome] = useState("")
-  const [avatar, setAvatar] = useState(AVATARES[0])
+  const [ra, setRa] = useState("")
 
   function abrirNovo() {
     setEditando(null)
     setNome("")
-    setAvatar(AVATARES[Math.floor(Math.random() * AVATARES.length)])
+    setRa("")
     setOpen(true)
   }
 
   function abrirEdicao(a: Aluno) {
     setEditando(a)
     setNome(a.nome)
-    setAvatar(a.avatar)
+    setRa(ras[a.id] ?? "")
     setOpen(true)
   }
 
@@ -52,10 +101,18 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
       return
     }
     if (editando) {
-      atualizarAluno(editando.id, nome.trim(), avatar)
+      atualizarAluno(editando.id, nome.trim(), editando.avatar)
+      salvarRa(editando.id, ra.trim())
       toast.success("Aluno atualizado!")
     } else {
-      adicionarAluno(nome.trim(), turmaId, avatar)
+      adicionarAluno(nome.trim(), turmaId, iniciais(nome.trim()))
+      // a store gera o id no momento da criação; buscamos o último aluno da turma para associar o RA
+      setTimeout(() => {
+        const criado = [...db.alunos]
+          .filter((a) => a.turma_id === turmaId)
+          .sort((x, y) => (x.id < y.id ? 1 : -1))[0]
+        if (criado) salvarRa(criado.id, ra.trim())
+      }, 0)
       toast.success("Aluno cadastrado com XP e streak zerados!")
     }
     setOpen(false)
@@ -77,19 +134,36 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
           const squad = db.squads.find((s) => s.id === a.squad_id)
           return (
             <Card key={a.id} className="flex items-center gap-3 p-3">
-              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-muted text-2xl">
-                {a.avatar}
+              <span
+                className={cn(
+                  "grid size-12 shrink-0 place-items-center rounded-2xl text-base font-extrabold",
+                  corPara(a.id),
+                )}
+              >
+                {iniciais(a.nome)}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display font-extrabold">{a.nome}</p>
-                <p className="text-xs font-bold text-muted-foreground">
-                  Nv {a.nivel} · {a.xp_total} XP · {squad ? `Squad ${squad.nome}` : "sem grupo"}
-                </p>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-bold text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <Trophy className="size-3.5" /> Nv {a.nivel} · {a.xp_total} XP
+                  </span>
+                  {squad && (
+                    <span className="flex items-center gap-1">
+                      <Users className="size-3.5" /> {squad.nome}
+                    </span>
+                  )}
+                  {ras[a.id] && (
+                    <span className="flex items-center gap-1">
+                      <IdCard className="size-3.5" /> RA {ras[a.id]}
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => abrirEdicao(a)}
                 aria-label={`Editar ${a.nome}`}
-                className="grid size-9 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-brand-turquoise/15 hover:text-cyan-700"
+                className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-brand-turquoise/15 hover:text-cyan-700"
               >
                 <Pencil className="size-4" />
               </button>
@@ -99,7 +173,7 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
                   toast.success("Aluno removido")
                 }}
                 aria-label={`Remover ${a.nome}`}
-                className="grid size-9 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-destructive/15 hover:text-destructive"
+                className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-destructive/15 hover:text-destructive"
               >
                 <Trash2 className="size-4" />
               </button>
@@ -108,7 +182,7 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
         })}
         {alunos.length === 0 && (
           <Card className="col-span-full grid place-items-center gap-2 p-8 text-center">
-            <span className="text-4xl">📝</span>
+            <UserPlus className="size-8 text-muted-foreground" />
             <p className="font-semibold text-muted-foreground">Nenhum aluno ainda. Cadastre o primeiro!</p>
           </Card>
         )}
@@ -133,22 +207,33 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Avatar</Label>
-              <div className="flex flex-wrap gap-2">
-                {AVATARES.map((av) => (
-                  <button
-                    key={av}
-                    onClick={() => setAvatar(av)}
-                    className={cn(
-                      "grid size-11 place-items-center rounded-2xl border-2 text-2xl transition",
-                      avatar === av ? "border-primary bg-primary/10 scale-110" : "border-border bg-card",
-                    )}
-                  >
-                    {av}
-                  </button>
-                ))}
-              </div>
+              <Label htmlFor="ra-aluno">RA (matrícula)</Label>
+              <Input
+                id="ra-aluno"
+                value={ra}
+                onChange={(e) => setRa(e.target.value)}
+                placeholder="Ex: 2026001"
+                className="rounded-2xl"
+              />
+              <p className="text-xs text-muted-foreground">
+                Campo de teste por enquanto — será usado depois no login do aluno.
+              </p>
             </div>
+            {nome.trim() && (
+              <div className="flex items-center gap-3 rounded-2xl bg-muted/60 p-3">
+                <span
+                  className={cn(
+                    "grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-extrabold",
+                    editando ? corPara(editando.id) : CORES_AVATAR[0],
+                  )}
+                >
+                  {iniciais(nome)}
+                </span>
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Avatar gerado automaticamente a partir do nome.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button onClick={salvar} className="w-full rounded-2xl py-6 font-extrabold">

@@ -8,6 +8,15 @@ import { cn } from "@/lib/utils"
 import { formatarDataCurta } from "@/lib/game"
 import { Check, Gift, X } from "lucide-react"
 import { toast } from "sonner"
+import type { CategoriaRecompensa } from "@/lib/types"
+
+const EMOJI_CATEGORIA: Record<CategoriaRecompensa, string> = {
+  ponto_extra: "✏️",
+  cinema: "🎬",
+  dia_sem_uniforme: "👕",
+  certificado: "📜",
+  material: "🎒",
+}
 
 export function AprovacoesTab({ turmaId }: { turmaId: string }) {
   const { db, aprovarResgate } = useStore()
@@ -22,9 +31,10 @@ export function AprovacoesTab({ turmaId }: { turmaId: string }) {
     return `Squad ${db.squads.find((s) => s.id === r.solicitante_id)?.nome ?? ""}`
   }
 
-  function nomeRecompensa(id: string) {
-    const r = db.recompensas_reais.find((x) => x.id === id)
-    return r ? `${r.emoji} ${r.nome}` : id
+  function recompensaInfo(id: string) {
+    const r = db.recompensas.find((x) => x.id === id)
+    if (!r) return { label: "Recompensa removida", emoji: "🎁" }
+    return { label: r.nome, emoji: EMOJI_CATEGORIA[r.categoria] ?? "🎁" }
   }
 
   return (
@@ -46,37 +56,43 @@ export function AprovacoesTab({ turmaId }: { turmaId: string }) {
           </p>
         ) : (
           <div className="space-y-2">
-            {pendentes.map((r) => (
-              <Card key={r.id} className="flex flex-wrap items-center gap-3 p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-display font-extrabold">{nomeRecompensa(r.recompensa_id)}</p>
-                  <p className="text-xs font-bold text-muted-foreground">
-                    Solicitado por {nomeSolicitante(r)} · {formatarDataCurta(r.data)}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => {
-                      aprovarResgate(r.id, true)
-                      toast.success("Resgate aprovado!")
-                    }}
-                    className="rounded-2xl bg-brand-green font-extrabold text-primary-foreground hover:bg-brand-green/90"
-                  >
-                    <Check className="size-4" /> Aprovar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      aprovarResgate(r.id, false)
-                      toast("Resgate negado")
-                    }}
-                    className="rounded-2xl font-extrabold"
-                  >
-                    <X className="size-4" /> Negar
-                  </Button>
-                </div>
-              </Card>
-            ))}
+            {pendentes.map((r) => {
+              const info = recompensaInfo(r.recompensa_id)
+              return (
+                <Card key={r.id} className="flex flex-wrap items-center gap-3 p-3">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-muted text-xl">
+                    {info.emoji}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display font-extrabold">{info.label}</p>
+                    <p className="text-xs font-bold text-muted-foreground">
+                      Solicitado por {nomeSolicitante(r)} · {formatarDataCurta(r.data)} · {r.custo_xp} XP
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        aprovarResgate(r.id, true)
+                        toast.success("Resgate aprovado!")
+                      }}
+                      className="rounded-2xl bg-brand-green font-extrabold text-primary-foreground hover:bg-brand-green/90"
+                    >
+                      <Check className="size-4" /> Aprovar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        aprovarResgate(r.id, false)
+                        toast("Resgate negado")
+                      }}
+                      className="rounded-2xl font-extrabold"
+                    >
+                      <X className="size-4" /> Negar
+                    </Button>
+                  </div>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
@@ -85,21 +101,29 @@ export function AprovacoesTab({ turmaId }: { turmaId: string }) {
         <div>
           <h3 className="mb-2 font-display text-lg font-extrabold">Histórico</h3>
           <div className="space-y-2">
-            {resolvidos.map((r) => (
-              <Card key={r.id} className="flex items-center gap-3 p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-display font-bold">{nomeRecompensa(r.recompensa_id)}</p>
-                  <p className="text-xs font-bold text-muted-foreground">{nomeSolicitante(r)}</p>
-                </div>
-                <Badge
-                  className={cn(
-                    r.status === "aprovada" ? "bg-brand-green/20 text-green-700" : "bg-destructive/15 text-destructive",
-                  )}
-                >
-                  {r.status === "aprovada" ? "Aprovada" : "Negada"}
-                </Badge>
-              </Card>
-            ))}
+            {resolvidos.map((r) => {
+              const info = recompensaInfo(r.recompensa_id)
+              return (
+                <Card key={r.id} className="flex items-center gap-3 p-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-muted text-lg">
+                    {info.emoji}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display font-bold">{info.label}</p>
+                    <p className="text-xs font-bold text-muted-foreground">{nomeSolicitante(r)}</p>
+                  </div>
+                  <Badge
+                    className={cn(
+                      r.status === "aprovada"
+                        ? "bg-brand-green/20 text-green-700"
+                        : "bg-destructive/15 text-destructive",
+                    )}
+                  >
+                    {r.status === "aprovada" ? "Aprovada" : "Negada"}
+                  </Badge>
+                </Card>
+              )
+            })}
           </div>
         </div>
       )}
