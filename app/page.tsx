@@ -1,11 +1,13 @@
-"use client"
+  "use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { useStore } from "@/lib/store"
-import { Logo, StreakFlame } from "@/components/brand"
+import { StreakFlame } from "@/components/brand"
 import { SchoolTurmaSelector } from "@/components/school-turma-selector"
 import { DemoBar } from "@/components/demo-bar"
+
 import { cn } from "@/lib/utils"
 import { ArrowRight, GraduationCap, QrCode, ScanLine } from "lucide-react"
 
@@ -13,51 +15,58 @@ export default function HomePage() {
   const router = useRouter()
   const { db, ready, turmaId, setAlunoId } = useStore()
   const [tela, setTela] = useState<"perfil" | "carteirinha">("perfil")
+  const [modalProfessorAberto, setModalProfessorAberto] = useState(false)
 
-  const alunosTurma = db.alunos
-    .filter((a) => a.turma_id === turmaId)
-    .sort((a, b) => a.nome.localeCompare(b.nome))
+    const alunosTurma = db.alunos
+      .filter((a) => a.turma_id === turmaId)
+      .sort((a, b) => a.nome.localeCompare(b.nome))
 
-  function entrarComoAluno(id: string) {
-    setAlunoId(id)
-    router.push("/aluno")
-  }
+    function entrarComoAluno(id: string) {
+      setAlunoId(id)
+      router.push("/aluno")
+    }
 
-  if (!ready) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-gradient-to-b from-indigo-50 via-sky-50 to-violet-50">
-        <div className="animate-bounce-soft text-5xl">🎯</div>
-      </div>
-    )
-  }
+    if (!ready) {
+      return (
+        <div className="grid min-h-screen place-items-center bg-gradient-to-b from-indigo-50 via-sky-50 to-violet-50">
+          <div className="animate-bounce-soft text-5xl">🎯</div>
+        </div>
+      )
+    }
 
   return (
-    <div className="flex min-h-screen flex-col ">
-      <header className="mx-auto flex w-full max-w-md items-center justify-between px-6 pt-6">
-  <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-    <Logo />
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-10 bg-black/60 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-md items-center gap-3 px-6 py-4">
+          <Image
+            src="/logo.png"
+            alt="Logo"
+            width={160}
+            height={44}
+            priority
+            className="h-11 w-auto shrink-0 object-contain"
+          />
+          <div className="min-w-0 flex-1">
+            <SchoolTurmaSelector showTurma={tela === "carteirinha"} />
+          </div>
+        </div>
+      </header>
 
-    <div className="flex items-center">
-      <SchoolTurmaSelector showTurma={tela === "carteirinha"} />
-    </div>
-  </div>
-</header>
+        <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10">
+          {tela === "perfil" && (
+            <>
+              <div className="mb-10 text-center">
+                <h1 className="text-5xl font-extrabold text-green-400 sm:text-5xl">
+                  Olá, novamente!
+                </h1>
+                <p className="mt-2 text-base font-semibold text-green-300">
+                  Já estávamos sentindo sua falta.
+                </p>
+              </div>
 
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10">
-        {tela === "perfil" && (
-          <>
-            <div className="mb-10 text-center">
-              <h1 className="text-5xl font-extrabold text-orange-600 sm:text-5xl">
-                Olá, novamente!
-              </h1>
-              <p className="mt-2 text-base font-semibold text-orange-400">
-                Já estávamos sentindo sua falta.
+              <p className="mb-4 text-center text-sm font-bold text-purple-500">
+                Escolha abaixo um perfil para acessar.
               </p>
-            </div>
-
-            <p className="mb-4 text-center text-sm font-bold text-purple-500">
-              Escolha abaixo um perfil para acessar.
-            </p>
 
             <div className="flex flex-col gap-4 ">
               <ProfileCard
@@ -69,7 +78,7 @@ export default function HomePage() {
                 sou="Sou"
                 titulo="Professor(a)"
                 extra="painel da turma"
-                onClick={() => router.push("/professor")}
+                onClick={() => setModalProfessorAberto(true)}
               />
             </div>
           </>
@@ -128,47 +137,47 @@ export default function HomePage() {
         )}
       </main>
 
-      <DemoBar />
-    </div>
-  )
-}
+        <DemoBar />
+      </div>
+    )
+  }
 
-function ProfileCard({
-  sou,
-  titulo,
-  extra,
-  onClick,
-}: {
-  sou: string
-  titulo: string
-  extra?: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "group flex w-full items-center justify-between gap-3 rounded-[28px] border border-white/60",
-        "bg-gradient-to-r from-zinc-800 to-zinc-900 px-6 py-5 text-left shadow-[0_6px_20px_-8px_rgba(30,41,59,0.25)]",
-        "transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-8px_rgba(30,41,59,0.3)]",
-      )}
-    >
-      <span>
-        <span className="block text-sm font-semibold">{sou}</span>
-        <span className="block font-display text-2xl font-extrabold text-purple-500">{titulo}</span>
-      </span>
-
-      <span className="flex items-center gap-2">
-        {extra && (
-          <span className="hidden items-center gap-1 text-xs font-bold text-secondary sm:flex">
-            <GraduationCap className="size-4" />
-            {extra}
-          </span>
+  function ProfileCard({
+    sou,
+    titulo,
+    extra,
+    onClick,
+  }: {
+    sou: string
+    titulo: string
+    extra?: string
+    onClick: () => void
+  }) {
+    return (
+      <button
+        onClick={onClick}
+        className={cn(
+          "group flex w-full items-center justify-between gap-3 rounded-[28px] border border-white/60",
+          "bg-gradient-to-r from-zinc-800 to-zinc-900 px-6 py-5 text-left shadow-[0_6px_20px_-8px_rgba(30,41,59,0.25)]",
+          "transition hover:-translate-y-0.5 hover:shadow-[0_10px_24px_-8px_rgba(30,41,59,0.3)]",
         )}
-        <span className="grid size-10 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-400 transition group-hover:border-primary group-hover:text-primary">
-          <ArrowRight className="size-4" />
+      >
+        <span>
+          <span className="block text-sm font-semibold">{sou}</span>
+          <span className="block font-display text-2xl font-extrabold text-purple-500">{titulo}</span>
         </span>
-      </span>
-    </button>
-  )
-}
+
+        <span className="flex items-center gap-2">
+          {extra && (
+            <span className="hidden items-center gap-1 text-xs font-bold text-white sm:flex">
+              <GraduationCap className="size-4" />
+              {extra}
+            </span>
+          )}
+          <span className="grid size-10 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-400 transition group-hover:border-primary group-hover:text-primary">
+            <ArrowRight className="size-4" />
+          </span>
+        </span>
+      </button>
+    )
+  }

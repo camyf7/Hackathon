@@ -95,9 +95,8 @@ interface StoreCtx {
   responderExercicio: (alunoId: string, exercicioId: string) => { acertou: boolean; xp: number } | null
   fazerCheckin: (alunoId: string) => number | null
   equiparBanner: (alunoId: string, bannerId: string) => void
-  concluirAtividade: (alunoId: string, atividadeId: string) => number | null
-  solicitarResgate: (recompensaId: string, alunoId: string) => AuthResult
-  // ações professora — alunos
+  solicitarResgate: (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, turmaId: string) => void
+  // ações professora
   adicionarAluno: (nome: string, turmaId: string, avatar: string) => void
   atualizarAluno: (id: string, nome: string, avatar: string) => void
   removerAluno: (id: string) => void
@@ -136,40 +135,73 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [turmaId, setTurmaIdState] = useState("")
   const [alunoId, setAlunoId] = useState<string | null>(null)
 
-  // carregar do localStorage
+  // carregar do localStorage - CORRIGIDO
   useEffect(() => {
     let base: DB
+
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
+
       if (raw) {
-        base = JSON.parse(raw) as DB
+        const parsed = JSON.parse(raw) as DB
+
+        // Compatibilidade - garantindo que todas as propriedades existam
+        parsed.atividades ??= []
+        parsed.recompensas ??= []
+        parsed.resgates ??= []
+        parsed.missoes ??= []
+        parsed.squads ??= []
+        parsed.banners ??= []
+        parsed.presencas ??= []
+        parsed.progresso ??= []
+        parsed.escolas ??= []
+        parsed.turmas ??= []
+        parsed.alunos ??= []
+        parsed.professores ??= []
+        parsed.trilhas ??= []
+
+        base = parsed
       } else {
         base = criarSeed()
         localStorage.setItem(STORAGE_KEY, JSON.stringify(base))
       }
     } catch {
       base = criarSeed()
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(base))
     }
+
     setDb(base)
 
-    // sessão
     try {
       const rawSession = localStorage.getItem(SESSION_KEY)
-      const session = rawSession ? (JSON.parse(rawSession) as { professorId?: string | null }) : null
-      const pid = session?.professorId && base.professores.some((p) => p.id === session.professorId)
-        ? session.professorId
+
+      const session = rawSession
+        ? JSON.parse(rawSession) as { professorId?: string | null }
         : null
-      setProfessorId(pid ?? null)
-      const escInicial = base.escolas[0]?.id ?? ""
-      setEscolaIdState(escInicial)
+
+      const pid =
+        session?.professorId &&
+        base.professores.some((p) => p.id === session.professorId)
+          ? session.professorId
+          : null
+
+      setProfessorId(pid)
+
+      const primeiraEscola = base.escolas?.[0]?.id ?? ""
+
+      setEscolaIdState(primeiraEscola)
+
       const turmasVisiveis = pid
         ? base.turmas.filter((t) => t.professor_id === pid)
-        : base.turmas.filter((t) => t.escola_id === escInicial)
+        : base.turmas.filter((t) => t.escola_id === primeiraEscola)
+
       setTurmaIdState(turmasVisiveis[0]?.id ?? "")
     } catch {
-      setEscolaIdState(base.escolas[0]?.id ?? "")
-      setTurmaIdState(base.turmas[0]?.id ?? "")
+      setProfessorId(null)
+      setEscolaIdState(base.escolas?.[0]?.id ?? "")
+      setTurmaIdState(base.turmas?.[0]?.id ?? "")
     }
+
     setReady(true)
   }, [])
 
@@ -364,80 +396,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
-  const concluirAtividade = useCallback((aid: string, atividadeId: string) => {
-    let xpGanho: number | null = null
-    setDb((prev) => {
-      const atividade = prev.atividades.find((a) => a.id === atividadeId)
-      const aluno = prev.alunos.find((a) => a.id === aid)
-      if (!atividade || !aluno) return prev
-      if (atividade.status !== "aberta") return prev
-      if (atividade.alunos_concluidos.includes(aid)) return prev
-      xpGanho = atividade.xp
-
-      const atividades = prev.atividades.map((a) =>
-        a.id === atividadeId ? { ...a, alunos_concluidos: [...a.alunos_concluidos, aid] } : a,
-      )
-      const alunos = prev.alunos.map((a) =>
-        a.id === aid
-          ? recalcAluno(
-              { ...a, xp_total: a.xp_total + atividade.xp, atividades_concluidas: [...a.atividades_concluidas, atividadeId] },
-              prev.banners,
-            )
-          : a,
-      )
-      const next = { ...prev, atividades, alunos }
-      return { ...next, squads: recalcSquads(next) }
-    })
-    return xpGanho
-  }, [])
-
-  const solicitarResgate = useCallback((recompensaId: string, aid: string): AuthResult => {
-    let result: AuthResult = { ok: true }
-    setDb((prev) => {
-      const recompensa = prev.recompensas.find((r) => r.id === recompensaId)
-      const aluno = prev.alunos.find((a) => a.id === aid)
-      if (!recompensa || !aluno) {
-        result = { ok: false, error: "Recompensa indisponível." }
-        return prev
-      }
-      if (recompensa.status !== "ativa" || recompensa.quantidade <= 0) {
-        result = { ok: false, error: "Recompensa esgotada." }
-        return prev
-      }
-      if (aluno.xp_total < recompensa.custo_xp) {
-        result = { ok: false, error: "XP insuficiente." }
-        return prev
-      }
-      const jaExiste = prev.resgates.some(
-        (r) => r.recompensa_id === recompensaId && r.solicitante_id === aid && r.status === "pendente",
-      )
-      if (jaExiste) {
-        result = { ok: false, error: "Você já tem um pedido pendente." }
-        return prev
-      }
-      const recompensas = prev.recompensas.map((r) =>
-        r.id === recompensaId ? { ...r, quantidade: r.quantidade - 1 } : r,
-      )
-      return {
-        ...prev,
-        recompensas,
-        resgates: [
-          ...prev.resgates,
-          {
-            id: `res-${Date.now()}`,
-            recompensa_id: recompensaId,
-            solicitante_id: aid,
-            solicitante_tipo: "aluno" as const,
-            turma_id: aluno.turma_id,
-            custo_xp: recompensa.custo_xp,
-            status: "pendente" as const,
-            data: prev.data_atual,
-          },
-        ],
-      }
-    })
-    return result
-  }, [])
+  const solicitarResgate = useCallback(
+    (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, tId: string) => {
+      setDb((prev) => {
+        const jaExiste = prev.resgates.some(
+          (r) => r.recompensa_id === recompensaId && r.solicitante_id === solicitanteId && r.status === "pendente",
+        )
+        if (jaExiste) return prev
+        return {
+          ...prev,
+          resgates: [
+            ...prev.resgates,
+            {
+              id: `res-${Date.now()}`,
+              recompensa_id: recompensaId,
+              solicitante_id: solicitanteId,
+              solicitante_tipo: tipo,
+              turma_id: tId,
+              status: "pendente",
+              data: prev.data_atual,
+            },
+          ],
+        }
+      })
+    },
+    [],
+  )
 
   // ---------- ações professora — alunos ----------
   const adicionarAluno = useCallback((nome: string, tId: string, avatar: string) => {
@@ -458,7 +442,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         banner_equipado: "b_ceu",
         badges: [],
         ultima_presenca: null,
-        atividades_concluidas: [],
       }
       const progresso = [
         ...prev.progresso,
@@ -727,24 +710,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  // ---------- CORRIGIDO: aprovarResgate ----------
   const aprovarResgate = useCallback((resgateId: string, aprovar: boolean) => {
     setDb((prev) => {
       const resgate = prev.resgates.find((r) => r.id === resgateId)
       if (!resgate || resgate.status !== "pendente") return prev
+
+      // Busca a recompensa para obter o custo_xp
+      const recompensa = prev.recompensas.find(
+        (r) => r.id === resgate.recompensa_id
+      )
+      if (!recompensa) return prev
+
       const resgates = prev.resgates.map((r) =>
         r.id === resgateId ? { ...r, status: aprovar ? ("aprovada" as const) : ("negada" as const) } : r,
       )
+
       if (aprovar) {
-        // desconta o XP travado do aluno
+        // Desconta o XP do aluno usando o custo_xp da recompensa
         const alunos = prev.alunos.map((a) =>
           a.id === resgate.solicitante_id
-            ? recalcAluno({ ...a, xp_total: Math.max(0, a.xp_total - resgate.custo_xp) }, prev.banners)
+            ? recalcAluno(
+                { ...a, xp_total: Math.max(0, a.xp_total - recompensa.custo_xp) },
+                prev.banners
+              )
             : a,
         )
         const next = { ...prev, resgates, alunos }
         return { ...next, squads: recalcSquads(next) }
       }
-      // negado: devolve a unidade reservada da recompensa
+
+      // Negado: devolve a unidade reservada da recompensa
       const recompensas = prev.recompensas.map((r) =>
         r.id === resgate.recompensa_id ? { ...r, quantidade: r.quantidade + 1 } : r,
       )
@@ -803,6 +799,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(seed))
   }, [])
 
+  // ---------- CORRIGIDO: useMemo com todas as dependências ----------
   const value = useMemo<StoreCtx>(
     () => ({
       db,
@@ -823,7 +820,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       responderExercicio,
       fazerCheckin,
       equiparBanner,
-      concluirAtividade,
       solicitarResgate,
       adicionarAluno,
       atualizarAluno,
@@ -849,14 +845,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       resetarDados,
     }),
     [
-      db, ready, professorId, escolaId, turmaId, alunoId, setEscolaId, setTurmaId,
-      registrarProfessor, loginProfessor, logoutProfessor, criarTurma, atualizarTurma, removerTurma,
-      responderExercicio, fazerCheckin, equiparBanner, concluirAtividade, solicitarResgate,
-      adicionarAluno, atualizarAluno, removerAluno, moverAlunoParaTurma,
-      criarAtividade, atualizarAtividade, encerrarAtividade, removerAtividade,
-      criarRecompensa, atualizarRecompensa, alternarStatusRecompensa, removerRecompensa,
-      criarSquad, removerSquad, gerarSquadsAuto, marcarPresenca, postarMissao, aprovarResgate,
-      avancarDia, simularPresenca, simularXP, resetarDados,
+      db,
+      ready,
+      professorId,
+      escolaId,
+      turmaId,
+      alunoId,
+      setEscolaId,
+      setTurmaId,
+      setAlunoId,
+      registrarProfessor,
+      loginProfessor,
+      logoutProfessor,
+      criarTurma,
+      atualizarTurma,
+      removerTurma,
+      responderExercicio,
+      fazerCheckin,
+      equiparBanner,
+      solicitarResgate,
+      adicionarAluno,
+      atualizarAluno,
+      removerAluno,
+      moverAlunoParaTurma,
+      criarAtividade,
+      atualizarAtividade,
+      encerrarAtividade,
+      removerAtividade,
+      criarRecompensa,
+      atualizarRecompensa,
+      alternarStatusRecompensa,
+      removerRecompensa,
+      criarSquad,
+      removerSquad,
+      gerarSquadsAuto,
+      marcarPresenca,
+      postarMissao,
+      aprovarResgate,
+      avancarDia,
+      simularPresenca,
+      simularXP,
+      resetarDados,
     ],
   )
 

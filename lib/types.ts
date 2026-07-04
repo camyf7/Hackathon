@@ -30,6 +30,10 @@ export interface Aluno {
   banner_equipado: string | null
   badges: string[] // ids de badges
   ultima_presenca: string | null // data ISO (yyyy-mm-dd)
+  // Trilha de Recompensas: ícones de perfil desbloqueados por nível (mesmo xp_total do aluno)
+  recompensas_resgatadas: number[] // ids das recompensas já resgatadas
+  icones_desbloqueados: string[] // ids de ícones já no inventário (inclui "default")
+  icone_selecionado: string // id do ícone em uso como foto de perfil
 }
 
 export type TipoSquad = "dupla" | "trio" | "squad"
@@ -138,7 +142,7 @@ export interface Atividade {
   turma_id: string
   trilha_id: string
   titulo: string
-  descricao: string
+  descricao: string 
   nivel_alvo: number
   prazo: string | null // yyyy-mm-dd, opcional
   xp_bonus: number

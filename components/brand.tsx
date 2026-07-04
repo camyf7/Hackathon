@@ -4,6 +4,7 @@ import { Flame } from "lucide-react";
 import type { Banner } from "@/lib/types";
 import { progressoNivel, xpNoNivel, XP_POR_NIVEL } from "@/lib/game";
 
+
 export function Logo({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
@@ -17,6 +18,37 @@ export function Logo({ className }: { className?: string }) {
       />
     </div>
   );
+}
+
+export function XpShieldIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={cn("size-4", className)}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M12 2.5 4 5.5v5.2c0 5 3.4 8.6 8 10.8 4.6-2.2 8-5.8 8-10.8V5.5L12 2.5Z"
+        fill="currentColor"
+        fillOpacity="0.16"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <text
+        x="12"
+        y="14.2"
+        textAnchor="middle"
+        fontSize="7.5"
+        fontWeight="800"
+        fill="currentColor"
+        fontFamily="var(--font-baloo), ui-sans-serif, system-ui, sans-serif"
+      >
+        XP
+      </text>
+    </svg>
+  )
 }
 
 export function StreakFlame({ dias, className }: { dias: number; className?: string }) {
@@ -98,5 +130,6 @@ export function BannerPerfil({
       </div>
       {children}
     </div>
+    
   )
 }
