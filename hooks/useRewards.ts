@@ -36,7 +36,7 @@ export function useRewards(alunoId: string) {
     if (!aluno) return false
     const recompensa = RECOMPENSAS.find((r) => r.id === recompensaId)
     if (!recompensa) return false
-    const estado = estadoDaRecompensa(recompensa, detalhesNivel.nivel, aluno.recompensas_resgatadas)
+    const estado = estadoDaRecompensa(recompensa, detalhesNivel.nivel, aluno.recompensas_resgatadas ?? []) // 👈 adicionar ?? []
     if (estado !== "disponivel") return false
     resgatarRecompensaXp(aluno.id, recompensa.id, recompensa.icone)
     return true

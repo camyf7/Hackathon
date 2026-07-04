@@ -10,6 +10,7 @@ import type {
   Professor,
   ProgressoTrilha,
   Recompensa,
+  RecompensaReal,
   Squad,
   Trilha,
   Turma,
@@ -177,6 +178,15 @@ const RECOMPENSAS_MODELO: Omit<Recompensa, "id" | "turma_id" | "criada_em">[] = 
   },
 ]
 
+// ---------- Recompensas reais globais (mundo real - independente de turma) ----------
+// Usado pela aba "Mundo real" da Trilha de Recompensas do aluno.
+const RECOMPENSAS_REAIS: RecompensaReal[] = [
+  { id: "rr_lanche", nome: "Lanche especial", emoji: "🍕", criterio_xp: 300 },
+  { id: "rr_folga", nome: "Folga de uma tarefa de casa", emoji: "📝", criterio_xp: 500 },
+  { id: "rr_passeio", nome: "Passeio em família", emoji: "🎡", criterio_xp: 900 },
+  { id: "rr_presente", nome: "Presente surpresa", emoji: "🎁", criterio_xp: 1400 },
+]
+
 // ---------- Atividades modelo (por turma) ----------
 const ATIVIDADES_MODELO: Omit<Atividade, "id" | "turma_id" | "criada_em" | "alunos_concluidos">[] = [
   {
@@ -324,6 +334,10 @@ export function criarSeed(): DB {
           banner_equipado: bannersIniciais(xp)[Math.min(1, bannersIniciais(xp).length - 1)] ?? "b_ceu",
           badges: badgesIniciais(xp, streak),
           ultima_presenca: streak > 0 ? hoje : adicionarDias(hoje, -3),
+          // Trilha de Recompensas: todo aluno começa só com o ícone padrão
+          recompensas_resgatadas: [],
+          icones_desbloqueados: ["default"],
+          icone_selecionado: "default",
         }
         nomeIdx++
         alunos.push(aluno)
@@ -411,6 +425,7 @@ export function criarSeed(): DB {
     atividades,
     banners,
     recompensas,
+    recompensas_reais: RECOMPENSAS_REAIS,
     resgates: [],
     missoes,
     data_atual: hoje,

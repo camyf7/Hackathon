@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { Aluno } from "@/lib/types"
 import { useStore } from "@/lib/store"
@@ -10,6 +11,24 @@ import { Clock, Flame, Trophy } from "lucide-react"
 import { useRewards } from "@/hooks/useRewards"
 import { ProfileIconPicker } from "@/components/rewards/ProfileIconPicker"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
+
+/** Milissegundos restantes até a próxima meia-noite (horário do dispositivo). */
+function msAteProximaMeiaNoite(): number {
+  const agora = new Date()
+  const proxima = new Date(agora)
+  proxima.setHours(24, 0, 0, 0)
+  return proxima.getTime() - agora.getTime()
+}
+
+/** Formata ms restantes como "Xh Ymin" (ou "Ymin" se menos de 1h). */
+function formatarContagem(ms: number): string {
+  const totalMin = Math.max(0, Math.ceil(ms / 60000))
+  const h = Math.floor(totalMin / 60)
+  const min = totalMin % 60
+  if (h <= 0) return `${min}min`
+  return `${h}h ${min}min`
+}
 
 export function PerfilView({ aluno }: { aluno: Aluno }) {
   const { db } = useStore()
@@ -21,6 +40,26 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
   const minHoje = aluno.tempo_tela_minutos_hoje
   const atingiuMeta = minHoje >= META_TELA_DIARIA
   const excedeu = minHoje >= META_TELA_DIARIA * 2
+
+  // Contagem regressiva até o próximo reset diário (meia-noite)
+  const [restante, setRestante] = useState(() => msAteProximaMeiaNoite())
+  useEffect(() => {
+    const id = setInterval(() => setRestante(msAteProximaMeiaNoite()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Notifica (toast) uma única vez por dia quando a meta diária é batida
+  useEffect(() => {
+    if (!atingiuMeta) return
+    const chave = `limite-diario-notificado-${aluno.id}-${db.data_atual}`
+    if (typeof window === "undefined" || localStorage.getItem(chave)) return
+    localStorage.setItem(chave, "1")
+    toast.success("Limite diário atingido! 🎉", {
+      description: `Suas tarefas de hoje foram concluídas. Próximas tarefas em ${formatarContagem(msAteProximaMeiaNoite())}.`,
+      icon: "⏳",
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atingiuMeta, aluno.id, db.data_atual])
 
   return (
     <div className="space-y-4 pb-4">
@@ -76,13 +115,22 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
             style={{ width: `${Math.min(100, (minHoje / META_TELA_DIARIA) * 100)}%` }}
           />
         </div>
-        <p className="mt-2 text-sm font-semibold text-muted-foreground">
-          {excedeu
-            ? "Já rendeu bastante hoje, que tal uma pausa pra descansar? 😴"
-            : atingiuMeta
-              ? "Meta do dia batida! Você mandou muito bem hoje 🎉"
-              : "Cada minutinho conta. Bora completar um exercício?"}
-        </p>
+
+        {atingiuMeta ? (
+          <div className="mt-3 flex items-start gap-2 rounded-2xl bg-background/60 p-3 ring-1 ring-border">
+            <span className="text-lg">🎉</span>
+            <p className="text-sm font-semibold text-foreground">
+              Suas tarefas de hoje foram concluídas!{" "}
+              <span className="font-extrabold text-primary">
+                Próximas tarefas em {formatarContagem(restante)}.
+              </span>
+            </p>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm font-semibold text-muted-foreground">
+            Cada minutinho conta. Bora completar um exercício?
+          </p>
+        )}
       </div>
 
       {/* Trilha de Recompensas: ícones desbloqueados por nível */}

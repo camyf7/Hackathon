@@ -96,6 +96,9 @@ interface StoreCtx {
   fazerCheckin: (alunoId: string) => number | null
   equiparBanner: (alunoId: string, bannerId: string) => void
   solicitarResgate: (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, turmaId: string) => void
+  // Trilha de Recompensas (ícones de perfil por nível/xp)
+  resgatarRecompensaXp: (alunoId: string, recompensaId: number, icone: string) => void
+  selecionarIconePerfil: (alunoId: string, iconeId: string) => void
   // ações professora
   adicionarAluno: (nome: string, turmaId: string, avatar: string) => void
   atualizarAluno: (id: string, nome: string, avatar: string) => void
@@ -159,6 +162,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         parsed.alunos ??= []
         parsed.professores ??= []
         parsed.trilhas ??= []
+        parsed.recompensas_reais ??= []
+
+        // Compatibilidade - Trilha de Recompensas (alunos salvos antes desses campos existirem)
+        parsed.alunos = parsed.alunos.map((a) => ({
+          ...a,
+          recompensas_resgatadas: a.recompensas_resgatadas ?? [],
+          icones_desbloqueados: a.icones_desbloqueados ?? ["default"],
+          icone_selecionado: a.icone_selecionado ?? "default",
+        }))
 
         base = parsed
       } else {
@@ -396,6 +408,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  // ---------- Trilha de Recompensas (ícones de perfil por nível/XP) ----------
+  const resgatarRecompensaXp = useCallback((aid: string, recompensaId: number, icone: string) => {
+    setDb((prev) => ({
+      ...prev,
+      alunos: prev.alunos.map((a) => {
+        if (a.id !== aid) return a
+        if (a.recompensas_resgatadas.includes(recompensaId)) return a
+        return {
+          ...a,
+          recompensas_resgatadas: [...a.recompensas_resgatadas, recompensaId],
+          icones_desbloqueados: a.icones_desbloqueados.includes(icone)
+            ? a.icones_desbloqueados
+            : [...a.icones_desbloqueados, icone],
+        }
+      }),
+    }))
+  }, [])
+
+  const selecionarIconePerfil = useCallback((aid: string, iconeId: string) => {
+    setDb((prev) => ({
+      ...prev,
+      alunos: prev.alunos.map((a) =>
+        a.id === aid && a.icones_desbloqueados.includes(iconeId)
+          ? { ...a, icone_selecionado: iconeId }
+          : a,
+      ),
+    }))
+  }, [])
+
   const solicitarResgate = useCallback(
     (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, tId: string) => {
       setDb((prev) => {
@@ -442,6 +483,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         banner_equipado: "b_ceu",
         badges: [],
         ultima_presenca: null,
+        recompensas_resgatadas: [],
+        icones_desbloqueados: ["default"],
+        icone_selecionado: "default",
       }
       const progresso = [
         ...prev.progresso,
@@ -821,6 +865,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       fazerCheckin,
       equiparBanner,
       solicitarResgate,
+      resgatarRecompensaXp,
+      selecionarIconePerfil,
       adicionarAluno,
       atualizarAluno,
       removerAluno,
@@ -864,6 +910,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       fazerCheckin,
       equiparBanner,
       solicitarResgate,
+      resgatarRecompensaXp,
+      selecionarIconePerfil,
       adicionarAluno,
       atualizarAluno,
       removerAluno,

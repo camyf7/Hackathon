@@ -4,19 +4,23 @@ import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
 import { useRewards } from "@/hooks/useRewards"
+import { temaDoIcone, type IconeId } from "@/lib/rewards"
 import { XPBar } from "@/components/rewards/XPBar"
 import { RewardTrack } from "@/components/rewards/RewardTrack"
 import { RewardCard } from "@/components/rewards/RewardCard"
 import { Logo } from "@/components/brand"
 import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 export default function TrilhaRecompensasPage() {
   const router = useRouter()
   const { ready, alunoId } = useStore()
-  const { aluno, carregado, xpTotal, recompensas, resgatar } = useRewards(alunoId ?? "")
+  const { aluno, carregado, xpTotal, recompensas, resgatar, selectedIcon } = useRewards(alunoId ?? "")
   const [subiuDeNivel, setSubiuDeNivel] = useState(false)
   const nivelAnteriorRef = useRef<number | null>(null)
+
+  const tema = temaDoIcone((selectedIcon ?? "default") as IconeId)
 
   useEffect(() => {
     if (ready && !alunoId) router.replace("/")
@@ -72,9 +76,9 @@ export default function TrilhaRecompensasPage() {
       </header>
 
       <main className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-5">
-        <section className="rounded-3xl bg-card p-4 shadow-sm ring-1 ring-border">
+        <section className={cn("rounded-3xl bg-card p-4 shadow-sm ring-1", tema.ring)}>
           <XPBar xp={xpTotal} subiuDeNivel={subiuDeNivel} />
-          <p className="mt-3 text-right font-display text-sm font-extrabold text-primary">
+          <p className={cn("mt-3 text-right font-display text-sm font-extrabold", tema.text)}>
             {xpTotal} XP acumulados
           </p>
         </section>
