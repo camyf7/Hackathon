@@ -2,10 +2,12 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Image from "next/image"
 import { useStore } from "@/lib/store"
-import { Logo, StreakFlame } from "@/components/brand"
+import { StreakFlame } from "@/components/brand"
 import { SchoolTurmaSelector } from "@/components/school-turma-selector"
 import { DemoBar } from "@/components/demo-bar"
+import { TeacherPasswordModal } from "@/components/teacher-password-modal"
 import { cn } from "@/lib/utils"
 import { ArrowRight, GraduationCap, QrCode, ScanLine } from "lucide-react"
 
@@ -13,6 +15,7 @@ export default function HomePage() {
   const router = useRouter()
   const { db, ready, turmaId, setAlunoId } = useStore()
   const [tela, setTela] = useState<"perfil" | "carteirinha">("perfil")
+  const [modalProfessorAberto, setModalProfessorAberto] = useState(false)
 
   const alunosTurma = db.alunos
     .filter((a) => a.turma_id === turmaId)
@@ -32,10 +35,21 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col ">
-      <header className="mx-auto flex w-full max-w-md flex-wrap items-center justify-between gap-3 px-6 pt-6">
-        <Logo />
-        <SchoolTurmaSelector showTurma={tela === "carteirinha"} />
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-10 bg-black/60 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-md items-center gap-3 px-6 py-4">
+          <Image
+            src="/logo.png"
+            alt="Logo"
+            width={160}
+            height={44}
+            priority
+            className="h-11 w-auto shrink-0 object-contain"
+          />
+          <div className="min-w-0 flex-1">
+            <SchoolTurmaSelector showTurma={tela === "carteirinha"} />
+          </div>
+        </div>
       </header>
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10">
@@ -64,7 +78,7 @@ export default function HomePage() {
                 sou="Sou"
                 titulo="Professor(a)"
                 extra="painel da turma"
-                onClick={() => router.push("/professor")}
+                onClick={() => setModalProfessorAberto(true)}
               />
             </div>
           </>
@@ -122,6 +136,15 @@ export default function HomePage() {
           </>
         )}
       </main>
+
+      <TeacherPasswordModal
+        open={modalProfessorAberto}
+        onClose={() => setModalProfessorAberto(false)}
+        onSuccess={() => {
+          setModalProfessorAberto(false)
+          router.push("/professor")
+        }}
+      />
 
       <DemoBar />
     </div>

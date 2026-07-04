@@ -304,6 +304,7 @@ export function criarSeed(): DB {
     recompensas_reais,
     resgates: [],
     missoes,
+    atividades: [],
     data_atual: hoje,
   }
 }

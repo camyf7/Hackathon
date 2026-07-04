@@ -18,10 +18,10 @@ const baloo = Baloo_2({
 })
 
 export const metadata: Metadata = {
-  title: 'Trilha+ | O Duolingo da vida escolar',
+  title: 'Trilha+',
   description:
     'App gamificado de aprendizado e engajamento para a rede municipal de ensino de Caraguatatuba. Trilhas, XP, streaks, squads e recompensas.',
-  generator: 'v0.app',
+  
 }
 
 export const viewport: Viewport = {

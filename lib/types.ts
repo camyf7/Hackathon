@@ -132,3 +132,33 @@ export interface DB {
   missoes: Missao[]
   data_atual: string // yyyy-mm-dd (simulada)
 }
+
+export interface Atividade {
+  id: string
+  turma_id: string
+  trilha_id: string
+  titulo: string
+  descricao: string
+  nivel_alvo: number
+  prazo: string | null // yyyy-mm-dd, opcional
+  xp_bonus: number
+  criada_em: string
+  status: "aberta" | "encerrada"
+  alunos_concluidos: string[]
+}
+
+export interface DB {
+  escolas: Escola[]
+  turmas: Turma[]
+  alunos: Aluno[]
+  squads: Squad[]
+  trilhas: Trilha[]
+  progresso: ProgressoTrilha[]
+  presencas: Presenca[]
+  banners: Banner[]
+  recompensas_reais: RecompensaReal[]
+  resgates: Resgate[]
+  missoes: Missao[]
+  atividades: Atividade[]
+  data_atual: string
+}

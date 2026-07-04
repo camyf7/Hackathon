@@ -8,6 +8,7 @@ import { SchoolTurmaSelector } from "@/components/school-turma-selector"
 import { DashboardTab } from "@/components/professor/dashboard-tab"
 import { AlunosTab } from "@/components/professor/alunos-tab"
 import { SquadsTab } from "@/components/professor/squads-tab"
+import { AtividadesTab } from "@/components/professor/atividades-tab"
 import { MissoesTab } from "@/components/professor/missoes-tab"
 import { PresencaTab } from "@/components/professor/presenca-tab"
 import { AprovacoesTab } from "@/components/professor/aprovacoes-tab"
@@ -18,18 +19,29 @@ import {
   Activity,
   AlertTriangle,
   CalendarCheck,
+  ClipboardList,
   Gift,
+  Loader2,
   LogOut,
   Target,
   UsersRound,
 } from "lucide-react"
 
-type Tab = "dashboard" | "alunos" | "squads" | "missoes" | "presenca" | "aprovacoes" | "alertas"
+type Tab =
+  | "dashboard"
+  | "alunos"
+  | "squads"
+  | "atividades"
+  | "missoes"
+  | "presenca"
+  | "aprovacoes"
+  | "alertas"
 
 const TABS: { id: Tab; label: string; icon: typeof Activity }[] = [
   { id: "dashboard", label: "Painel", icon: Activity },
   { id: "alunos", label: "Alunos", icon: UsersRound },
   { id: "squads", label: "Squads", icon: UsersRound },
+  { id: "atividades", label: "Atividades", icon: ClipboardList },
   { id: "missoes", label: "Missões", icon: Target },
   { id: "presenca", label: "Presença", icon: CalendarCheck },
   { id: "aprovacoes", label: "Prêmios", icon: Gift },
@@ -44,14 +56,14 @@ export default function ProfessorPage() {
   if (!ready) {
     return (
       <div className="grid min-h-screen place-items-center bg-background">
-        <div className="animate-bounce-soft text-5xl">🎯</div>
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
       </div>
     )
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <Logo />
           <div className="flex items-center gap-2">
@@ -77,10 +89,8 @@ export default function ProfessorPage() {
                   onClick={() => setTab(t.id)}
                   aria-current={ativo ? "page" : undefined}
                   className={cn(
-                    "flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-bold transition",
-                    ativo
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-muted",
+                    "flex shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-semibold transition",
+                    ativo ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted",
                   )}
                 >
                   <Icon className="size-4" />
@@ -96,6 +106,7 @@ export default function ProfessorPage() {
         {tab === "dashboard" && <DashboardTab turmaId={turmaId} />}
         {tab === "alunos" && <AlunosTab turmaId={turmaId} />}
         {tab === "squads" && <SquadsTab turmaId={turmaId} />}
+        {tab === "atividades" && <AtividadesTab turmaId={turmaId} />}
         {tab === "missoes" && <MissoesTab turmaId={turmaId} />}
         {tab === "presenca" && <PresencaTab turmaId={turmaId} />}
         {tab === "aprovacoes" && <AprovacoesTab turmaId={turmaId} />}

@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import type { Aluno, DB, Missao, Squad, TipoSquad } from "./types"
+import type { Aluno, Atividade, DB, Missao, Squad, TipoSquad } from "./types"
 import { criarSeed } from "./seed"
 import { adicionarDias, nivelDoXp } from "./game"
 
@@ -65,6 +65,19 @@ interface StoreCtx {
   marcarPresenca: (alunoId: string, data: string, estado: "presente" | "falta" | "justificada") => void
   postarMissao: (turmaId: string, squadId: string | null, titulo: string, descricao: string, xp: number) => void
   aprovarResgate: (resgateId: string, aprovar: boolean) => void
+  // atividades (professora lança, aluno cumpre)
+  criarAtividade: (
+    turmaId: string,
+    trilhaId: string,
+    titulo: string,
+    descricao: string,
+    nivelAlvo: number,
+    prazo: string | null,
+    xpBonus: number,
+  ) => void
+  encerrarAtividade: (atividadeId: string) => void
+  removerAtividade: (atividadeId: string) => void
+  verificarAtividadesAluno: (alunoId: string) => void
   // demo
   avancarDia: () => void
   simularPresenca: () => void
@@ -87,6 +100,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
         const parsed = JSON.parse(raw) as DB
+        // garante compatibilidade com dados salvos antes da feature de atividades
+        if (!parsed.atividades) parsed.atividades = []
         setDb(parsed)
         setEscolaIdState(parsed.escolas[0]?.id ?? "")
         setTurmaIdState(parsed.turmas.find((t) => t.escola_id === parsed.escolas[0]?.id)?.id ?? "")
@@ -278,6 +293,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         progresso: prev.progresso.filter((p) => p.aluno_id !== id),
         presencas: prev.presencas.filter((p) => p.aluno_id !== id),
         squads,
+        atividades: prev.atividades.map((at) => ({
+          ...at,
+          alunos_concluidos: at.alunos_concluidos.filter((x) => x !== id),
+        })),
       }
       return { ...next, squads: recalcSquads(next) }
     })
@@ -419,6 +438,82 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  // ---------- atividades (professora lança, aluno cumpre) ----------
+  const criarAtividade = useCallback(
+    (
+      tId: string,
+      trilhaId: string,
+      titulo: string,
+      descricao: string,
+      nivelAlvo: number,
+      prazo: string | null,
+      xpBonus: number,
+    ) => {
+      setDb((prev) => {
+        const nova: Atividade = {
+          id: `at-${Date.now()}`,
+          turma_id: tId,
+          trilha_id: trilhaId,
+          titulo,
+          descricao,
+          nivel_alvo: nivelAlvo,
+          prazo,
+          xp_bonus: xpBonus,
+          criada_em: prev.data_atual,
+          status: "aberta",
+          alunos_concluidos: [],
+        }
+        return { ...prev, atividades: [...prev.atividades, nova] }
+      })
+    },
+    [],
+  )
+
+  const encerrarAtividade = useCallback((id: string) => {
+    setDb((prev) => ({
+      ...prev,
+      atividades: prev.atividades.map((a) => (a.id === id ? { ...a, status: "encerrada" as const } : a)),
+    }))
+  }, [])
+
+  const removerAtividade = useCallback((id: string) => {
+    setDb((prev) => ({ ...prev, atividades: prev.atividades.filter((a) => a.id !== id) }))
+  }, [])
+
+  // Verifica se o aluno já atingiu o nível-alvo de alguma atividade aberta
+  // da própria turma e, se sim, concede o XP bônus uma única vez.
+  const verificarAtividadesAluno = useCallback((aid: string) => {
+    setDb((prev) => {
+      const aluno = prev.alunos.find((a) => a.id === aid)
+      if (!aluno) return prev
+
+      let xpGanho = 0
+      let mudou = false
+
+      const atividades = prev.atividades.map((at) => {
+        if (at.status !== "aberta") return at
+        if (at.turma_id !== aluno.turma_id) return at
+        if (at.alunos_concluidos.includes(aid)) return at
+
+        const prog = prev.progresso.find((p) => p.aluno_id === aid && p.trilha_id === at.trilha_id)
+        if (!prog || prog.nivel_atual < at.nivel_alvo) return at
+
+        mudou = true
+        xpGanho += at.xp_bonus
+        return { ...at, alunos_concluidos: [...at.alunos_concluidos, aid] }
+      })
+
+      if (!mudou) return prev
+
+      const alunos = prev.alunos.map((a) =>
+        a.id === aid ? recalcAluno({ ...a, xp_total: a.xp_total + xpGanho }, prev.banners) : a,
+      )
+
+      const next = { ...prev, atividades, alunos }
+      return { ...next, squads: recalcSquads(next) }
+    })
+  }, [])
+
   // ---------- demo ----------
   const avancarDia = useCallback(() => {
     setDb((prev) => {
@@ -493,6 +588,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       marcarPresenca,
       postarMissao,
       aprovarResgate,
+      criarAtividade,
+      encerrarAtividade,
+      removerAtividade,
+      verificarAtividadesAluno,
       avancarDia,
       simularPresenca,
       simularXP,
@@ -503,6 +602,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       responderExercicio, fazerCheckin, equiparBanner, solicitarResgate,
       adicionarAluno, atualizarAluno, removerAluno, criarSquad, removerSquad,
       gerarSquadsAuto, marcarPresenca, postarMissao, aprovarResgate,
+      criarAtividade, encerrarAtividade, removerAtividade, verificarAtividadesAluno,
       avancarDia, simularPresenca, simularXP, resetarDados,
     ],
   )
