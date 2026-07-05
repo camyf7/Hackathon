@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { RewardIcon } from "@/components/rewards/reward-icon"
 import { cn } from "@/lib/utils"
 import { IdCard, Pencil, Plus, Trash2, Trophy, UserPlus, Users } from "lucide-react"
 import { toast } from "sonner"
@@ -23,7 +24,8 @@ const RA_STORAGE_KEY = "trilha-plus-ra-v1"
 
 const ease = [0.16, 1, 0.3, 1] as const
 
-// paleta de cores para o avatar de iniciais — sem emoji, gerada por hash do id
+// paleta de cores para o avatar de iniciais — usada só quando o aluno
+// ainda não tem foto nem ícone de recompensa escolhido.
 const CORES_AVATAR = [
   "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   "bg-sky-500/10 text-sky-600 dark:text-sky-400",
@@ -44,6 +46,45 @@ function corPara(id: string) {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
   return CORES_AVATAR[hash % CORES_AVATAR.length]
+}
+
+// Um "avatar" pode ser um emoji, um caminho de imagem (ex: "/avatar1.png")
+// ou nem existir ainda — mesma checagem usada na tela inicial (HomePage).
+function isImagePath(avatar: string): boolean {
+  return avatar.startsWith("/") || avatar.startsWith("http")
+}
+
+// Resolve o visual do aluno com a mesma prioridade da HomePage:
+// ícone de recompensa escolhido > foto de avatar > iniciais geradas do nome.
+// Lê sempre do objeto Aluno mais atual (db.alunos), então qualquer troca de
+// perfil aparece aqui automaticamente, sem precisar duplicar dado.
+function AvatarAluno({ aluno, className }: { aluno: Aluno; className?: string }) {
+  if (aluno.icone_selecionado && aluno.icone_selecionado !== "default") {
+    return (
+      <span className={cn("grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted", className)}>
+        <RewardIcon icone={aluno.icone_selecionado} className="size-full" />
+      </span>
+    )
+  }
+  if (isImagePath(aluno.avatar)) {
+    return (
+      <span className={cn("grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted", className)}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={aluno.avatar} alt="" className="size-full object-cover" />
+      </span>
+    )
+  }
+  return (
+    <span
+      className={cn(
+        "grid shrink-0 place-items-center rounded-2xl text-base font-bold",
+        corPara(aluno.id),
+        className,
+      )}
+    >
+      {iniciais(aluno.nome)}
+    </span>
+  )
 }
 
 function carregarRas(): Record<string, string> {
@@ -151,14 +192,7 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
               <motion.div key={a.id} variants={itemVariants} exit="exit" layout>
                 <Card className="p-3 transition-shadow hover:shadow-md">
                   <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        "grid size-12 shrink-0 place-items-center rounded-2xl text-base font-bold",
-                        corPara(a.id),
-                      )}
-                    >
-                      {iniciais(a.nome)}
-                    </span>
+                    <AvatarAluno aluno={a} className="size-12" />
                     <div className="min-w-0 flex-1 text-left">
                       <p className="truncate font-display font-bold text-foreground">{a.nome}</p>
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-semibold text-muted-foreground">
@@ -216,7 +250,7 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
       </motion.div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="overflow-hidden rounded-3xl">
           <DialogHeader>
             <DialogTitle className="font-display text-xl">
               {editando ? "Editar aluno" : "Cadastrar novo aluno"}
@@ -256,16 +290,22 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
                   className="overflow-hidden"
                 >
                   <div className="flex items-center gap-3 rounded-2xl bg-muted/60 p-3">
-                    <span
-                      className={cn(
-                        "grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-bold",
-                        editando ? corPara(editando.id) : CORES_AVATAR[0],
-                      )}
-                    >
-                      {iniciais(nome)}
-                    </span>
+                    {editando ? (
+                      <AvatarAluno aluno={editando} className="size-11 text-sm" />
+                    ) : (
+                      <span
+                        className={cn(
+                          "grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-bold",
+                          CORES_AVATAR[0],
+                        )}
+                      >
+                        {iniciais(nome)}
+                      </span>
+                    )}
                     <p className="text-xs font-medium text-muted-foreground">
-                      Avatar gerado automaticamente a partir do nome.
+                      {editando
+                        ? "Se o aluno já escolheu foto ou ícone, o avatar dele é mantido."
+                        : "Avatar gerado automaticamente a partir do nome."}
                     </p>
                   </div>
                 </motion.div>

@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { RewardIcon } from "@/components/rewards/reward-icon"
 import { Shuffle, Trash2, Users, Wand2 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -39,12 +40,29 @@ function corSquad(id: string) {
   return CORES_SQUAD[hash % CORES_SQUAD.length]
 }
 
-// Resolve o visual de perfil do aluno. TODO: quando tivermos o catálogo
-// que mapeia icone_selecionado (id/nome, ex: "medal", "book") para o
-// emoji/imagem correspondente, plugar aqui. Por enquanto usa sempre o
-// avatar pra evitar exibir o id cru como texto.
-function iconePerfil(aluno: { avatar: string; icone_selecionado?: string }) {
-  return aluno.avatar
+// Resolve o visual de perfil do aluno, na mesma ordem de prioridade usada
+// na tela inicial (HomePage): ícone de recompensa escolhido > foto de
+// avatar > emoji padrão. Como RewardIcon e isImagePath já existem no
+// projeto, replicamos a mesma lógica aqui em vez de reinventar.
+function isImagePath(avatar: string): boolean {
+  return avatar.startsWith("/") || avatar.startsWith("http")
+}
+
+function AvatarAluno({
+  aluno,
+  className,
+}: {
+  aluno: { avatar: string; icone_selecionado?: string }
+  className?: string
+}) {
+  if (aluno.icone_selecionado && aluno.icone_selecionado !== "default") {
+    return <RewardIcon icone={aluno.icone_selecionado} className={className} />
+  }
+  if (isImagePath(aluno.avatar)) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={aluno.avatar} alt="" className={cn("rounded-xl object-cover", className)} />
+  }
+  return <span className={cn("grid place-items-center", className)}>{aluno.avatar}</span>
 }
 
 export function SquadsTab({ turmaId }: { turmaId: string }) {
@@ -102,8 +120,8 @@ export function SquadsTab({ turmaId }: { turmaId: string }) {
                   sel ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/40",
                 )}
               >
-                <span className="grid size-9 place-items-center rounded-xl bg-muted text-xl">
-                  {iconePerfil(a)}
+                <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-xl">
+                  <AvatarAluno aluno={a} className="size-9 text-xl" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-bold">{a.nome.split(" ")[0]}</span>
@@ -168,7 +186,8 @@ export function SquadsTab({ turmaId }: { turmaId: string }) {
                       key={m!.id}
                       className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs font-bold"
                     >
-                      {iconePerfil(m!)} {m!.nome.split(" ")[0]}
+                      <AvatarAluno aluno={m!} className="size-4 text-sm" />
+                    {m!.nome.split(" ")[0]}
                     </span>
                   ))}
                 </div>
