@@ -9,6 +9,44 @@ import { cn } from "@/lib/utils"
 import { Shuffle, Trash2, Users, Wand2 } from "lucide-react"
 import { toast } from "sonner"
 
+// Extrai iniciais do nome do squad (ex: "Foguetes" -> "FO", "Time Alfa" -> "TA)
+// pra usar como badge no lugar do emoji.
+function iniciaisSquad(nome: string) {
+  const partes = nome.trim().split(/\s+/).filter(Boolean)
+  if (partes.length === 0) return "SQ"
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase()
+  return (partes[0][0] + partes[1][0]).toUpperCase()
+}
+
+// Paleta vibrante pra cada squad ter sua própria identidade visual
+// em vez de todos saírem no mesmo tom apagado de primary/15.
+const CORES_SQUAD = [
+  { badge: "bg-orange-500/15 text-orange-600", faixa: "bg-orange-500" },
+  { badge: "bg-cyan-500/15 text-cyan-600", faixa: "bg-cyan-500" },
+  { badge: "bg-fuchsia-500/15 text-fuchsia-600", faixa: "bg-fuchsia-500" },
+  { badge: "bg-lime-500/15 text-lime-700", faixa: "bg-lime-500" },
+  { badge: "bg-amber-500/15 text-amber-600", faixa: "bg-amber-500" },
+  { badge: "bg-sky-500/15 text-sky-600", faixa: "bg-sky-500" },
+  { badge: "bg-rose-500/15 text-rose-600", faixa: "bg-rose-500" },
+  { badge: "bg-violet-500/15 text-violet-600", faixa: "bg-violet-500" },
+]
+
+// Escolhe uma cor estável por squad a partir do id, assim o mesmo squad
+// sempre fica com a mesma cor entre renders.
+function corSquad(id: string) {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  return CORES_SQUAD[hash % CORES_SQUAD.length]
+}
+
+// Resolve o visual de perfil do aluno. TODO: quando tivermos o catálogo
+// que mapeia icone_selecionado (id/nome, ex: "medal", "book") para o
+// emoji/imagem correspondente, plugar aqui. Por enquanto usa sempre o
+// avatar pra evitar exibir o id cru como texto.
+function iconePerfil(aluno: { avatar: string; icone_selecionado?: string }) {
+  return aluno.avatar
+}
+
 export function SquadsTab({ turmaId }: { turmaId: string }) {
   const { db, criarSquad, removerSquad, gerarSquadsAuto } = useStore()
   const alunos = db.alunos.filter((a) => a.turma_id === turmaId)
@@ -64,7 +102,9 @@ export function SquadsTab({ turmaId }: { turmaId: string }) {
                   sel ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/40",
                 )}
               >
-                <span className="grid size-9 place-items-center rounded-xl bg-muted text-xl">{a.avatar}</span>
+                <span className="grid size-9 place-items-center rounded-xl bg-muted text-xl">
+                  {iconePerfil(a)}
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-bold">{a.nome.split(" ")[0]}</span>
                   <span className="block text-[10px] font-bold text-muted-foreground">{a.xp_total} XP</span>
@@ -89,38 +129,49 @@ export function SquadsTab({ turmaId }: { turmaId: string }) {
       <div className="grid gap-3 sm:grid-cols-2">
         {squads.map((s) => {
           const membros = s.alunos_ids.map((id) => db.alunos.find((a) => a.id === id)).filter(Boolean)
+          const cor = corSquad(s.id)
           return (
-            <Card key={s.id} className="p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">{s.emoji}</span>
-                  <div>
-                    <p className="font-display font-extrabold">{s.nome}</p>
-                    <p className="text-xs font-bold text-muted-foreground capitalize">
-                      {s.tipo} · {s.xp_coletivo} XP
-                    </p>
+            <Card key={s.id} className="overflow-hidden p-0">
+              <div className={cn("h-1.5 w-full", cor.faixa)} />
+              <div className="p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span
+                      className={cn(
+                        "grid size-9 shrink-0 place-items-center rounded-xl text-xs font-extrabold",
+                        cor.badge,
+                      )}
+                    >
+                      {iniciaisSquad(s.nome)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-display font-extrabold">{s.nome}</p>
+                      <p className="text-xs font-bold text-muted-foreground capitalize">
+                        {s.tipo} · {s.xp_coletivo} XP
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <button
-                  onClick={() => {
-                    removerSquad(s.id)
-                    toast.success("Squad desfeito")
-                  }}
-                  aria-label={`Remover squad ${s.nome}`}
-                  className="grid size-9 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-destructive/15 hover:text-destructive"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {membros.map((m) => (
-                  <span
-                    key={m!.id}
-                    className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs font-bold"
+                  <button
+                    onClick={() => {
+                      removerSquad(s.id)
+                      toast.success("Squad desfeito")
+                    }}
+                    aria-label={`Remover squad ${s.nome}`}
+                    className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-destructive/15 hover:text-destructive"
                   >
-                    {m!.avatar} {m!.nome.split(" ")[0]}
-                  </span>
-                ))}
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {membros.map((m) => (
+                    <span
+                      key={m!.id}
+                      className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs font-bold"
+                    >
+                      {iconePerfil(m!)} {m!.nome.split(" ")[0]}
+                    </span>
+                  ))}
+                </div>
               </div>
             </Card>
           )

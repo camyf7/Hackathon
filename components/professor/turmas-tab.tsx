@@ -15,13 +15,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -45,7 +38,6 @@ import {
   Plus,
   School,
   Trash2,
-  UserPlus,
   Users,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -59,7 +51,6 @@ export function TurmasTab() {
     criarTurma,
     atualizarTurma,
     removerTurma,
-    moverAlunoParaTurma,
   } = useStore()
 
   const turmas = db.turmas
@@ -71,11 +62,6 @@ export function TurmasTab() {
   const [nome, setNome] = useState("")
   const [serie, setSerie] = useState("")
   const [escolaId, setEscolaId] = useState(escolas[0]?.id ?? "")
-
-  // adicionar aluno existente
-  const [addOpen, setAddOpen] = useState(false)
-  const [turmaAlvo, setTurmaAlvo] = useState<Turma | null>(null)
-  const [alunoSel, setAlunoSel] = useState("")
 
   // excluir turma
   const [excluirOpen, setExcluirOpen] = useState(false)
@@ -116,12 +102,6 @@ export function TurmasTab() {
     setOpen(false)
   }
 
-  function abrirAddAluno(t: Turma) {
-    setTurmaAlvo(t)
-    setAlunoSel("")
-    setAddOpen(true)
-  }
-
   function abrirExcluir(t: Turma) {
     setTurmaExcluir(t)
     setExcluirOpen(true)
@@ -135,23 +115,6 @@ export function TurmasTab() {
     setTurmaExcluir(null)
   }
 
-  // alunos que não estão nesta turma (para adicionar existentes)
-  const alunosDisponiveis = turmaAlvo
-    ? db.alunos
-        .filter((a) => a.turma_id !== turmaAlvo.id)
-        .sort((a, b) => a.nome.localeCompare(b.nome))
-    : []
-
-  function confirmarAddAluno() {
-    if (!turmaAlvo || !alunoSel) {
-      toast.error("Selecione um aluno")
-      return
-    }
-    moverAlunoParaTurma(alunoSel, turmaAlvo.id)
-    toast.success("Aluno adicionado à turma")
-    setAddOpen(false)
-  }
-
   const alunosNaTurmaExcluir = turmaExcluir
     ? db.alunos.filter((a) => a.turma_id === turmaExcluir.id).length
     : 0
@@ -163,7 +126,11 @@ export function TurmasTab() {
           <h2 className="font-display text-xl font-bold text-foreground">Minhas turmas</h2>
           <p className="text-sm text-muted-foreground">{turmas.length} turma(s) cadastrada(s)</p>
         </div>
-        <Button onClick={abrirNova} className="w-full shrink-0 rounded-2xl font-bold sm:w-auto">
+        <Button
+          type="button"
+          onClick={abrirNova}
+          className="w-full shrink-0 rounded-2xl font-bold sm:w-auto"
+        >
           <Plus className="size-4" /> Nova turma
         </Button>
       </div>
@@ -174,7 +141,11 @@ export function TurmasTab() {
           return (
             <Card key={t.id} className="p-4">
               <div className="flex items-start justify-between gap-2">
-                <button onClick={() => setTurmaId(t.id)} className="min-w-0 flex-1 text-left">
+                <button
+                  type="button"
+                  onClick={() => setTurmaId(t.id)}
+                  className="min-w-0 flex-1 text-left"
+                >
                   <div className="flex items-center gap-2">
                     <span className="grid size-9 place-items-center rounded-xl bg-primary/10 text-primary">
                       <School className="size-4" />
@@ -187,6 +158,7 @@ export function TurmasTab() {
                 </button>
                 <div className="flex shrink-0 gap-1">
                   <button
+                    type="button"
                     onClick={() => abrirEdicao(t)}
                     aria-label={`Editar ${t.nome}`}
                     className="grid size-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted"
@@ -194,6 +166,7 @@ export function TurmasTab() {
                     <Pencil className="size-4" />
                   </button>
                   <button
+                    type="button"
                     onClick={() => abrirExcluir(t)}
                     aria-label={`Excluir ${t.nome}`}
                     className="grid size-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
@@ -203,18 +176,10 @@ export function TurmasTab() {
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+              <div className="mt-3 flex items-center border-t border-border pt-3">
                 <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground">
                   <Users className="size-4" /> {qtdAlunos} aluno(s)
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => abrirAddAluno(t)}
-                  className="rounded-xl font-semibold"
-                >
-                  <UserPlus className="size-4" /> Adicionar aluno
-                </Button>
               </div>
             </Card>
           )
@@ -231,7 +196,7 @@ export function TurmasTab() {
 
       {/* Dialog criar/editar turma */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="overflow-hidden rounded-3xl">
           <DialogHeader>
             <DialogTitle className="font-display text-xl">
               {editando ? "Editar turma" : "Nova turma"}
@@ -267,54 +232,9 @@ export function TurmasTab() {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button onClick={salvar} className="w-full rounded-2xl py-6 font-bold">
+          <DialogFooter className="pb-1">
+            <Button type="button" onClick={salvar} className="w-full rounded-2xl py-6 font-bold">
               {editando ? "Salvar alterações" : "Criar turma"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog adicionar aluno existente */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="font-display text-xl">
-              Adicionar aluno a {turmaAlvo?.nome}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Selecione um aluno já cadastrado em outra turma para movê-lo para esta.
-            </p>
-            <Select value={alunoSel} onValueChange={(v) => v && setAlunoSel(v)}>
-              <SelectTrigger className="rounded-2xl">
-                <SelectValue placeholder="Escolher aluno" />
-              </SelectTrigger>
-              <SelectContent>
-                {alunosDisponiveis.map((a) => {
-                  const turmaAtual = db.turmas.find((t) => t.id === a.turma_id)
-                  return (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.nome} — {turmaAtual?.nome ?? "sem turma"}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
-            {alunosDisponiveis.length === 0 && (
-              <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">
-                Não há outros alunos disponíveis para adicionar.
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={confirmarAddAluno}
-              disabled={alunosDisponiveis.length === 0}
-              className="w-full rounded-2xl py-6 font-bold"
-            >
-              <UserPlus className="size-4" /> Adicionar à turma
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -322,7 +242,7 @@ export function TurmasTab() {
 
       {/* Dialog confirmar exclusão de turma */}
       <Dialog open={excluirOpen} onOpenChange={setExcluirOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="overflow-hidden rounded-3xl">
           <DialogHeader>
             <div className="mx-auto grid size-14 place-items-center rounded-full bg-destructive/10">
               <AlertTriangle className="size-7 text-destructive" />
@@ -352,6 +272,7 @@ export function TurmasTab() {
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
+              type="button"
               variant="outline"
               onClick={() => setExcluirOpen(false)}
               className="w-full rounded-2xl font-bold sm:w-auto"
@@ -359,6 +280,7 @@ export function TurmasTab() {
               Cancelar
             </Button>
             <Button
+              type="button"
               onClick={confirmarExcluir}
               className="w-full rounded-2xl bg-destructive font-bold text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
             >

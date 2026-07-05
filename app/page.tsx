@@ -127,7 +127,7 @@ export default function HomePage() {
           <div className="relative flex shrink-0 items-center">
             <div className="absolute -left-3 size-14 rounded-full bg-emerald-400/[0.12] blur-2xl" />
             <Image
-              src="/logo.png"
+              src="logo.png"
               alt="Logo"
               width={190}
               height={60}

@@ -259,8 +259,6 @@ export function criarSeed(): DB {
   ]
 
   let nomeIdx = 0
-  const squadEmojis = ["🚀", "⭐", "🐉", "🔥", "🌈", "⚡", "🦸", "🎯"]
-  let squadEmojiIdx = 0
 
   escolas.forEach((escola, ei) => {
     seriesPorEscola[ei].forEach((serieNome, ti) => {
@@ -357,7 +355,7 @@ export function criarSeed(): DB {
         }
       }
 
-      // forma squads (uma dupla, um trio, resto squad)
+      // forma squads (uma dupla, um trio, resto squad) — sem emoji, só nome
       const ids = alunosTurma.map((a) => a.id)
       const grupos: string[][] = []
       if (ids.length >= 5) {
@@ -379,7 +377,6 @@ export function criarSeed(): DB {
           tipo,
           alunos_ids: g,
           xp_coletivo: xpColetivo,
-          emoji: squadEmojis[squadEmojiIdx++ % squadEmojis.length],
         })
         g.forEach((id) => {
           const a = alunos.find((x) => x.id === id)
