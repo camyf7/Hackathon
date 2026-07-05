@@ -198,28 +198,6 @@ const RECOMPENSAS_REAIS: RecompensaReal[] = [
   { id: "rr_presente", nome: "Presente surpresa", emoji: "🎁", criterio_xp: 1400 },
 ]
 
-// ---------- Atividades modelo (por turma) ----------
-const ATIVIDADES_MODELO: Omit<Atividade, "id" | "turma_id" | "criada_em" | "alunos_concluidos">[] = [
-  {
-    titulo: "Lista de exercícios de frações",
-    descricao: "Resolva a lista 3 do capítulo de frações e envie no caderno.",
-    prazo: null,
-    xp: 60,
-    dificuldade: "media",
-    anexos: [{ id: "ax1", nome: "lista-fracoes.pdf", tipo: "pdf" }],
-    status: "aberta",
-  },
-  {
-    titulo: "Leitura do texto 'O menino e o mar'",
-    descricao: "Leia o texto e responda as perguntas de interpretação.",
-    prazo: null,
-    xp: 30,
-    dificuldade: "facil",
-    anexos: [],
-    status: "aberta",
-  },
-]
-
 // ---------- Geração de escolas, turmas, alunos e squads ----------
 const AVATARES = ["🦊", "🐼", "🦁", "🐨", "🐸", "🦉", "🐙", "🦄", "🐵", "🐯", "🐧", "🦖", "🐢", "🐝", "🦋"]
 const NOMES = [
@@ -270,6 +248,8 @@ export function criarSeed(): DB {
   const squads: Squad[] = []
   const progresso: ProgressoTrilha[] = []
   const presencas: Presenca[] = []
+  // Sem atividades no seed: a trilha do aluno só deve mostrar atividades
+  // realmente lançadas pelo professor (aba "Atividades").
   const atividades: Atividade[] = []
   const recompensas: Recompensa[] = []
 
@@ -301,17 +281,6 @@ export function criarSeed(): DB {
           id: `${turmaId}-rec${ri}`,
           turma_id: turmaId,
           criada_em: new Date().toISOString(),
-        })
-      })
-
-      // atividades iniciais da turma
-      ATIVIDADES_MODELO.forEach((a, ai) => {
-        atividades.push({
-          ...a,
-          id: `${turmaId}-atv${ai}`,
-          turma_id: turmaId,
-          criada_em: new Date().toISOString(),
-          alunos_concluidos: [],
         })
       })
 
@@ -441,7 +410,7 @@ export function criarSeed(): DB {
     presencas,
     atividades,
     banners,
-    cores_nome: coresNome, // ← adicionar
+    cores_nome: coresNome,
     recompensas,
     recompensas_reais: RECOMPENSAS_REAIS,
     resgates: [],

@@ -7,7 +7,7 @@ import { Confetti } from "@/components/confetti"
 import { ExercicioDialog } from "./exercicio-dialog"
 import { CheckinCard } from "./checkin-card"
 import { cn } from "@/lib/utils"
-import { Check, Lock, Star } from "lucide-react"
+import { Check, ClipboardList, Lock, Star } from "lucide-react"
 import { toast } from "sonner"
 
 const CORES: Record<string, { bg: string; ring: string; texto: string }> = {
@@ -16,6 +16,24 @@ const CORES: Record<string, { bg: string; ring: string; texto: string }> = {
   turquoise: { bg: "bg-brand-turquoise", ring: "ring-brand-turquoise/30", texto: "text-cyan-700" },
   orange: { bg: "bg-brand-orange", ring: "ring-brand-orange/30", texto: "text-brand-orange" },
   pink: { bg: "bg-brand-pink", ring: "ring-brand-pink/30", texto: "text-brand-pink" },
+}
+
+// Iniciais do nome da disciplina, usadas no lugar de emoji para um
+// visual mais sóbrio/profissional (ex.: "Matemática" -> "MA").
+function iniciais(nome: string) {
+  return nome.trim().slice(0, 2).toUpperCase()
+}
+
+// A tarefa que o professor cadastrou pode vir com nomes de campo
+// diferentes dependendo de como foi criada. Esta função tenta os
+// nomes mais prováveis sem quebrar caso algum não exista, e sempre
+// cai em um texto padrão (nunca deixa a tela sem conteúdo).
+function tarefaDoExercicio(ex: Exercicio | undefined) {
+  if (!ex) return null
+  const e = ex as unknown as Record<string, unknown>
+  const titulo = (e.titulo ?? e.nome ?? e.pergunta ?? `Nível ${ex.nivel}`) as string
+  const descricao = (e.descricao ?? e.enunciado ?? e.instrucoes ?? null) as string | null
+  return { titulo, descricao }
 }
 
 export function TrilhasView({ aluno }: { aluno: Aluno }) {
@@ -45,18 +63,24 @@ export function TrilhasView({ aluno }: { aluno: Aluno }) {
   }
 
   return (
-    <div className="space-y-8 pb-4">
+    // overflow-x-hidden aqui é uma rede de segurança: garante que o
+    // zigue-zague do caminho nunca "estoure" a tela e crie scroll
+    // horizontal, mesmo em telas bem estreitas.
+    <div className="space-y-8 overflow-x-hidden pb-4">
       <Confetti fire={fire} />
       <CheckinCard aluno={aluno} onXp={() => setFire((f) => f + 1)} />
 
       {db.trilhas.map((trilha) => {
         const prog = progressoMap.get(trilha.id) ?? { nivel_atual: 1, completos: [] }
         const cor = CORES[trilha.cor] ?? CORES.green
+        const exercicioAtual = trilha.exercicios.find((ex) => ex.nivel === prog.nivel_atual)
+        const tarefa = tarefaDoExercicio(exercicioAtual)
+
         return (
           <section key={trilha.id}>
             <div className="mb-3 flex items-center gap-3 rounded-3xl bg-card p-3 shadow-sm ring-1 ring-border">
-              <span className={cn("grid size-12 place-items-center rounded-2xl text-2xl text-white", cor.bg)}>
-                {trilha.emoji}
+              <span className={cn("grid size-12 shrink-0 place-items-center rounded-2xl text-sm font-extrabold tracking-wide text-white", cor.bg)}>
+                {iniciais(trilha.nome)}
               </span>
               <div className="flex-1">
                 <h3 className="font-display text-lg font-extrabold">{trilha.nome}</h3>
@@ -66,20 +90,22 @@ export function TrilhasView({ aluno }: { aluno: Aluno }) {
               </div>
             </div>
 
-            {/* Caminho de níveis */}
-            <div className="flex flex-col items-center gap-1">
+            {/* Caminho de níveis — mesma lógica de progresso/bloqueio de
+                antes. O max-w + padding lateral garante espaço suficiente
+                para o zigue-zague sem cortar nem forçar scroll horizontal. */}
+            <div className="mx-auto flex w-full max-w-md flex-col items-center gap-1 px-14 sm:px-20">
               {trilha.exercicios.map((ex, idx) => {
                 const nivel = ex.nivel
                 const completo = nivel < prog.nivel_atual || prog.completos.includes(ex.id)
                 const atual = nivel === prog.nivel_atual && !completo
                 const bloqueado = nivel > prog.nivel_atual
-                // deslocamento em zigue-zague
+                // deslocamento em zigue-zague (mesma regra de antes)
                 const offset = [0, 60, 90, 60, 0, -60, -90][idx % 7]
                 return (
                   <div
                     key={ex.id}
                     className="flex flex-col items-center"
-                    style={{ transform: `translateX(${offset}px)` }}
+                    style={{ transform: `translateX(clamp(-72px, ${offset}px, 72px))` }}
                   >
                     <button
                       disabled={bloqueado}
@@ -112,6 +138,22 @@ export function TrilhasView({ aluno }: { aluno: Aluno }) {
                 )
               })}
             </div>
+
+            {/* Tarefa cadastrada pelo professor para o nível atual —
+                renderizada fora do zigue-zague (sem transform), num
+                retângulo com largura travada, então nunca estoura a
+                tela mesmo com um texto longo. */}
+            {tarefa && (
+              <div className="mx-auto mt-4 w-full max-w-sm rounded-2xl bg-muted/60 p-4 ring-1 ring-border">
+                <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground">
+                  <ClipboardList className="size-3.5" /> Tarefa do professor
+                </p>
+                <p className="mt-1 line-clamp-1 font-display text-sm font-extrabold">{tarefa.titulo}</p>
+                {tarefa.descricao && (
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{tarefa.descricao}</p>
+                )}
+              </div>
+            )}
           </section>
         )
       })}

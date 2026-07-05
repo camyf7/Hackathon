@@ -196,6 +196,14 @@ function PDFPreview({ arquivo, onClose }: { arquivo: AnexoArquivo | null; onClos
 export function AtividadesTab({ turmaId }: { turmaId: string }) {
   const { db, criarAtividade, atualizarAtividade, encerrarAtividade, removerAtividade } = useStore()
 
+  // Trilhas reais do banco (Matemática, Português, Ciências, História, Inglês...).
+  // É o mesmo id usado em `trilha_id` da Atividade, que é o que faz a
+  // atividade aparecer como etapa na trilha do aluno.
+  const trilhasDisponiveis = db.trilhas
+  function nomeTrilha(trilhaId: string) {
+    return trilhasDisponiveis.find((t) => t.id === trilhaId)?.nome ?? trilhaId
+  }
+
   const alunosTurma = db.alunos.filter((a) => a.turma_id === turmaId)
   const atividades = db.atividades
     .filter((a) => a.turma_id === turmaId)
@@ -239,6 +247,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
   const [prazo, setPrazo] = useState("")
   const [xp, setXp] = useState("50")
   const [dificuldade, setDificuldade] = useState<Dificuldade>("media")
+  const [trilhaId, setTrilhaId] = useState<string>(db.trilhas[0]?.id ?? "")
   const [arquivos, setArquivos] = useState<AnexoArquivo[]>([])
   const [enviando, setEnviando] = useState(false)
   const [previewArquivo, setPreviewArquivo] = useState<AnexoArquivo | null>(null)
@@ -259,6 +268,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     setPrazo("")
     setXp("50")
     setDificuldade("media")
+    setTrilhaId(db.trilhas[0]?.id ?? "")
     setArquivos([])
     setOpen(true)
   }
@@ -270,6 +280,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     setPrazo(a.prazo ?? "")
     setXp(String(a.xp))
     setDificuldade(a.dificuldade)
+    setTrilhaId(a.trilha_id ?? db.trilhas[0]?.id ?? "")
     setOpen(true)
   }
 
@@ -326,10 +337,15 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
       toast.error("Dê um título para a atividade")
       return
     }
+    if (!trilhaId) {
+      toast.error("Escolha a trilha (matéria) da atividade")
+      return
+    }
 
     const dados = {
       titulo: titulo.trim(),
       descricao: descricao.trim(),
+      trilha_id: trilhaId,
       prazo: prazo || null,
       xp: Number(xp) || 0,
       dificuldade,
@@ -395,6 +411,9 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-display font-bold text-foreground">{at.titulo}</p>
+                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">
+                      {nomeTrilha(at.trilha_id)}
+                    </span>
                     <span
                       className={cn(
                         "rounded-full px-2 py-0.5 text-[11px] font-semibold",
@@ -546,20 +565,37 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label>Dificuldade</Label>
-              <Select value={dificuldade} onValueChange={(v) => setDificuldade(v as Dificuldade)}>
-                <SelectTrigger className="rounded-2xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DIFICULDADES.map((d) => (
-                    <SelectItem key={d.value} value={d.value}>
-                      {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Matéria (trilha)</Label>
+                <Select value={trilhaId} onValueChange={setTrilhaId}>
+                  <SelectTrigger className="rounded-2xl">
+                    <SelectValue placeholder="Selecione a trilha" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trilhasDisponiveis.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Dificuldade</Label>
+                <Select value={dificuldade} onValueChange={(v) => setDificuldade(v as Dificuldade)}>
+                  <SelectTrigger className="rounded-2xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DIFICULDADES.map((d) => (
+                      <SelectItem key={d.value} value={d.value}>
+                        {d.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-1.5">
