@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useStore } from "@/lib/store"
-import { Logo, StreakFlame, XpBar, XpShieldIcon } from "@/components/brand"
+import { Logo, StreakFlame, XpShieldIcon } from "@/components/brand"
 import { TrilhasView } from "@/components/aluno/trilhas-view"
 import { PerfilView } from "@/components/aluno/perfil-view"
 import { SquadView } from "@/components/aluno/squad-view"
 import { RankingView } from "@/components/aluno/ranking-view"
 import { RecompensasView } from "@/components/aluno/recompensas-view"
 import { cn } from "@/lib/utils"
-import { Gift, Home, LogOut, Trophy, User, Users } from "lucide-react"
+import { Gift, Home, LogOut, Trophy, User, Users, Flame, ChevronDown } from "lucide-react"
+
 type Tab = "trilhas" | "squad" | "ranking" | "recompensas" | "perfil"
 
 const TABS: { id: Tab; label: string; icon: typeof Home }[] = [
@@ -45,37 +46,60 @@ export default function AlunoPage() {
     router.push("/")
   }
 
+  // ajuste aqui a origem do progresso geral (trilhas concluídas, etc)
+  const progressoGeral = aluno.progresso_geral ?? 0 // 0-100
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Topo com stats */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-2.5">
           <Logo className="scale-90" />
-          <div className="flex items-center gap-2">
-            <StreakFlame dias={aluno.streak_dias} />
-            <button
-              onClick={() => router.push("/aluno/trilha-recompensas")}
-              aria-label="Trilha de Recompensas"
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1.5 font-display font-extrabold text-primary transition hover:bg-primary/25"
-            >
-             <XpShieldIcon className="size-4" />
-              {aluno.xp_total}
-            </button>
-            <button
-              onClick={sair}
-              aria-label="Sair"
-              className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut className="size-4" />
-            </button>
-          </div>
+          <button
+            onClick={sair}
+            aria-label="Sair"
+            className="grid size-9 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+          >
+            <LogOut className="size-4" />
+          </button>
         </div>
-        {/* Barra de XP e nível */}
-        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 pb-2">
-          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary font-display text-sm font-extrabold text-primary-foreground">
-            {aluno.nivel}
-          </span>
-          <XpBar xp={aluno.xp_total} mostrarTexto={false} className="flex-1" />
+
+        {/* Cards de progresso e nível */}
+        <div className="mx-auto grid max-w-2xl grid-cols-2 gap-2 px-4 pb-3">
+          {/* Card: progresso geral */}
+          <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-3 py-2.5">
+            <div className="flex items-center gap-1.5">
+              <Flame className="size-4 fill-primary text-primary" />
+              <span className="text-xs font-bold text-muted-foreground">
+                Seu progresso geral
+              </span>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${progressoGeral}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Card: nível / XP */}
+          <button
+            onClick={() => router.push("/aluno/trilha-recompensas")}
+            className="flex items-center justify-between gap-2 rounded-2xl border border-border bg-card px-3 py-2.5 text-left transition hover:bg-muted/60"
+          >
+            <div className="flex items-center gap-2">
+              <XpShieldIcon className="size-8 shrink-0" />
+              <div className="flex flex-col">
+                <span className="font-display text-sm font-extrabold leading-tight text-foreground">
+                  Nível {aluno.nivel}
+                </span>
+                <span className="text-xs font-bold leading-tight text-muted-foreground">
+                  {aluno.xp_total} XP
+                </span>
+              </div>
+            </div>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+          </button>
         </div>
       </header>
 

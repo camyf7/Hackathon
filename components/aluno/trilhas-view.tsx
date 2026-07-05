@@ -1,33 +1,111 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useStore } from "@/lib/store"
 import type { Aluno, Exercicio, Trilha } from "@/lib/types"
 import { Confetti } from "@/components/confetti"
 import { ExercicioDialog } from "./exercicio-dialog"
 import { CheckinCard } from "./checkin-card"
 import { cn } from "@/lib/utils"
-import { Check, ClipboardList, Lock, Star } from "lucide-react"
+import { META_TELA_DIARIA } from "@/lib/game"
+import {
+  BookOpen,
+  Calculator,
+  Check,
+  ChevronDown,
+  FlaskConical,
+  Globe,
+  Landmark,
+  Lock,
+  Palette,
+} from "lucide-react"
 import { toast } from "sonner"
 
-const CORES: Record<string, { bg: string; ring: string; texto: string }> = {
-  green: { bg: "bg-brand-green", ring: "ring-brand-green/30", texto: "text-primary" },
-  purple: { bg: "bg-brand-purple", ring: "ring-brand-purple/30", texto: "text-brand-purple" },
-  turquoise: { bg: "bg-brand-turquoise", ring: "ring-brand-turquoise/30", texto: "text-cyan-700" },
-  orange: { bg: "bg-brand-orange", ring: "ring-brand-orange/30", texto: "text-brand-orange" },
-  pink: { bg: "bg-brand-pink", ring: "ring-brand-pink/30", texto: "text-brand-pink" },
+const POR_LINHA = 3
+
+/** Milissegundos restantes até a próxima meia-noite (horário do dispositivo). */
+function msAteProximaMeiaNoite(): number {
+  const agora = new Date()
+  const proxima = new Date(agora)
+  proxima.setHours(24, 0, 0, 0)
+  return proxima.getTime() - agora.getTime()
 }
 
-// Iniciais do nome da disciplina, usadas no lugar de emoji para um
-// visual mais sóbrio/profissional (ex.: "Matemática" -> "MA").
-function iniciais(nome: string) {
-  return nome.trim().slice(0, 2).toUpperCase()
+/** Formata ms restantes como "Xh Ymin" (ou "Ymin" se menos de 1h). */
+function formatarContagem(ms: number): string {
+  const totalMin = Math.max(0, Math.ceil(ms / 60000))
+  const h = Math.floor(totalMin / 60)
+  const min = totalMin % 60
+  if (h <= 0) return `${min}min`
+  return `${h}h ${min}min`
 }
 
-// A tarefa que o professor cadastrou pode vir com nomes de campo
-// diferentes dependendo de como foi criada. Esta função tenta os
-// nomes mais prováveis sem quebrar caso algum não exista, e sempre
-// cai em um texto padrão (nunca deixa a tela sem conteúdo).
+// Paleta por matéria — cada trilha tem um `cor` (ex.: "green", "purple").
+// Fallback automático por índice caso a trilha não tenha `cor` definida.
+type CorTrilha = {
+  bg: string
+  bgSuave: string
+  texto: string
+  borda: string
+  anel: string
+}
+
+const CORES: Record<string, CorTrilha> = {
+  green: {
+    bg: "bg-brand-green",
+    bgSuave: "bg-brand-green/10",
+    texto: "text-brand-green",
+    borda: "border-brand-green",
+    anel: "shadow-[0_0_0_6px_hsl(var(--brand-green)/0.18)]",
+  },
+  purple: {
+    bg: "bg-brand-purple",
+    bgSuave: "bg-brand-purple/10",
+    texto: "text-brand-purple",
+    borda: "border-brand-purple",
+    anel: "shadow-[0_0_0_6px_hsl(var(--brand-purple)/0.18)]",
+  },
+  turquoise: {
+    bg: "bg-brand-turquoise",
+    bgSuave: "bg-brand-turquoise/10",
+    texto: "text-brand-turquoise",
+    borda: "border-brand-turquoise",
+    anel: "shadow-[0_0_0_6px_hsl(var(--brand-turquoise)/0.18)]",
+  },
+  orange: {
+    bg: "bg-brand-orange",
+    bgSuave: "bg-brand-orange/10",
+    texto: "text-brand-orange",
+    borda: "border-brand-orange",
+    anel: "shadow-[0_0_0_6px_hsl(var(--brand-orange)/0.18)]",
+  },
+  pink: {
+    bg: "bg-brand-pink",
+    bgSuave: "bg-brand-pink/10",
+    texto: "text-brand-pink",
+    borda: "border-brand-pink",
+    anel: "shadow-[0_0_0_6px_hsl(var(--brand-pink)/0.18)]",
+  },
+}
+const ORDEM_CORES = Object.keys(CORES)
+
+function corDaTrilha(trilha: Trilha, indice: number) {
+  if (trilha.cor && CORES[trilha.cor]) return CORES[trilha.cor]
+  return CORES[ORDEM_CORES[indice % ORDEM_CORES.length]]
+}
+
+function iconePorNome(nome: string) {
+  const n = nome.toLowerCase()
+  if (n.includes("matem")) return Calculator
+  if (n.includes("portug") || n.includes("lingua")) return BookOpen
+  if (n.includes("geo")) return Globe
+  if (n.includes("cien") || n.includes("ciênc") || n.includes("bio") || n.includes("quim") || n.includes("fisic"))
+    return FlaskConical
+  if (n.includes("hist")) return Landmark
+  if (n.includes("art")) return Palette
+  return BookOpen
+}
+
 function tarefaDoExercicio(ex: Exercicio | undefined) {
   if (!ex) return null
   const e = ex as unknown as Record<string, unknown>
@@ -36,23 +114,78 @@ function tarefaDoExercicio(ex: Exercicio | undefined) {
   return { titulo, descricao }
 }
 
+function linhasEmCobra<T>(itens: T[], porLinha: number) {
+  const linhas: T[][] = []
+  for (let i = 0; i < itens.length; i += porLinha) {
+    linhas.push(itens.slice(i, i + porLinha))
+  }
+  return linhas
+}
+
 export function TrilhasView({ aluno }: { aluno: Aluno }) {
   const { db } = useStore()
   const [fire, setFire] = useState(0)
   const [trilhaAtiva, setTrilhaAtiva] = useState<Trilha | null>(null)
   const [exercicio, setExercicio] = useState<Exercicio | null>(null)
   const [open, setOpen] = useState(false)
+  const [seletorAberto, setSeletorAberto] = useState(false)
+  const [trilhaSelecionadaId, setTrilhaSelecionadaId] = useState<string | null>(null)
 
-  const progressoMap = useMemo(() => {
-    const m = new Map<string, { nivel_atual: number; completos: string[] }>()
-    db.progresso
-      .filter((p) => p.aluno_id === aluno.id)
-      .forEach((p) => m.set(p.trilha_id, { nivel_atual: p.nivel_atual, completos: p.exercicios_completos }))
-    return m
-  }, [db.progresso, aluno.id])
+  // ---------- Limite diário de tempo de tela ----------
+  const minHoje = aluno.tempo_tela_minutos_hoje
+  const limiteAtingido = minHoje >= META_TELA_DIARIA
 
-  function abrirExercicio(trilha: Trilha, ex: Exercicio) {
-    setTrilhaAtiva(trilha)
+  const [restante, setRestante] = useState(() => msAteProximaMeiaNoite())
+  useEffect(() => {
+    const id = setInterval(() => setRestante(msAteProximaMeiaNoite()), 30_000)
+    return () => clearInterval(id)
+  }, [])
+
+  // Notifica (toast) uma única vez por dia quando o limite é atingido
+  useEffect(() => {
+    if (!limiteAtingido) return
+    const chave = `limite-diario-notificado-${aluno.id}-${db.data_atual}`
+    if (typeof window === "undefined" || localStorage.getItem(chave)) return
+    localStorage.setItem(chave, "1")
+    toast.success("Todas suas tarefas foram concluídas! 🎉", {
+      description: `Próximas tarefas em ${formatarContagem(msAteProximaMeiaNoite())}.`,
+      icon: "⏳",
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [limiteAtingido, aluno.id, db.data_atual])
+
+  const trilhaIndex = useMemo(() => {
+    if (trilhaSelecionadaId) {
+      const i = db.trilhas.findIndex((t) => t.id === trilhaSelecionadaId)
+      if (i !== -1) return i
+    }
+    const iMatematica = db.trilhas.findIndex((t) => t.nome.toLowerCase().includes("matem"))
+    return iMatematica !== -1 ? iMatematica : 0
+  }, [db.trilhas, trilhaSelecionadaId])
+
+  const trilha = db.trilhas[trilhaIndex]
+  const cor = trilha ? corDaTrilha(trilha, trilhaIndex) : CORES.green
+
+  const prog = useMemo(() => {
+    const p = db.progresso.find((p) => p.aluno_id === aluno.id && p.trilha_id === trilha?.id)
+    return {
+      nivel_atual: p?.nivel_atual ?? 1,
+      completos: p?.exercicios_completos ?? [],
+    }
+  }, [db.progresso, aluno.id, trilha?.id])
+
+  const exercicioAtual = trilha?.exercicios.find((ex) => ex.nivel === prog.nivel_atual)
+  const tarefa = tarefaDoExercicio(exercicioAtual)
+
+  function abrirExercicio(t: Trilha, ex: Exercicio) {
+    if (limiteAtingido) {
+      toast("Todas suas tarefas foram concluídas!", {
+        description: `Próximas tarefas em ${formatarContagem(msAteProximaMeiaNoite())}.`,
+        icon: "⏳",
+      })
+      return
+    }
+    setTrilhaAtiva(t)
     setExercicio(ex)
     setOpen(true)
   }
@@ -62,101 +195,234 @@ export function TrilhasView({ aluno }: { aluno: Aluno }) {
     toast.success(`+${xp} XP conquistado!`, { icon: "⚡" })
   }
 
+  function selecionarTrilha(id: string) {
+    setTrilhaSelecionadaId(id)
+    setSeletorAberto(false)
+  }
+
+  if (!trilha) return null
+
+  const linhas = linhasEmCobra(trilha.exercicios, POR_LINHA)
+  const IconeMateria = iconePorNome(trilha.nome)
+
   return (
-    // overflow-x-hidden aqui é uma rede de segurança: garante que o
-    // zigue-zague do caminho nunca "estoure" a tela e crie scroll
-    // horizontal, mesmo em telas bem estreitas.
-    <div className="space-y-8 overflow-x-hidden pb-4">
+    <div className="space-y-6 overflow-x-hidden pb-4">
       <Confetti fire={fire} />
       <CheckinCard aluno={aluno} onXp={() => setFire((f) => f + 1)} />
 
-      {db.trilhas.map((trilha) => {
-        const prog = progressoMap.get(trilha.id) ?? { nivel_atual: 1, completos: [] }
-        const cor = CORES[trilha.cor] ?? CORES.green
-        const exercicioAtual = trilha.exercicios.find((ex) => ex.nivel === prog.nivel_atual)
-        const tarefa = tarefaDoExercicio(exercicioAtual)
+      {/* Aviso de limite diário de tempo de tela atingido */}
+      {limiteAtingido && (
+        <div className="flex items-start gap-2 rounded-3xl bg-brand-purple/10 p-4 ring-1 ring-brand-purple/20">
+          <span className="text-lg">🎉</span>
+          <p className="text-sm font-semibold text-foreground">
+            Todas suas tarefas de hoje foram concluídas!{" "}
+            <span className="font-extrabold text-brand-purple">
+              Próximas tarefas em {formatarContagem(restante)}.
+            </span>
+          </p>
+        </div>
+      )}
 
-        return (
-          <section key={trilha.id}>
-            <div className="mb-3 flex items-center gap-3 rounded-3xl bg-card p-3 shadow-sm ring-1 ring-border">
-              <span className={cn("grid size-12 shrink-0 place-items-center rounded-2xl text-sm font-extrabold tracking-wide text-white", cor.bg)}>
-                {iniciais(trilha.nome)}
-              </span>
-              <div className="flex-1">
-                <h3 className="font-display text-lg font-extrabold">{trilha.nome}</h3>
-                <p className="text-xs font-bold text-muted-foreground">
-                  Nível {Math.min(prog.nivel_atual, trilha.niveis)} de {trilha.niveis}
-                </p>
-              </div>
-            </div>
+      {/* Cabeçalho da matéria + seletor de matéria */}
+      <div className="relative flex items-center justify-between gap-3 rounded-3xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex items-center gap-3">
+          <span className={cn("grid size-11 shrink-0 place-items-center rounded-2xl text-white", cor.bg)}>
+            <IconeMateria className="size-5" />
+          </span>
+          <div>
+            <h2 className={cn("font-display text-lg font-extrabold leading-tight", cor.texto)}>
+              {trilha.nome}
+            </h2>
+            <p className="text-xs font-semibold text-muted-foreground">
+              Desenvolva seu raciocínio lógico e resolva problemas com confiança.
+            </p>
+          </div>
+        </div>
 
-            {/* Caminho de níveis — mesma lógica de progresso/bloqueio de
-                antes. O max-w + padding lateral garante espaço suficiente
-                para o zigue-zague sem cortar nem forçar scroll horizontal. */}
-            <div className="mx-auto flex w-full max-w-md flex-col items-center gap-1 px-14 sm:px-20">
-              {trilha.exercicios.map((ex, idx) => {
-                const nivel = ex.nivel
-                const completo = nivel < prog.nivel_atual || prog.completos.includes(ex.id)
-                const atual = nivel === prog.nivel_atual && !completo
-                const bloqueado = nivel > prog.nivel_atual
-                // deslocamento em zigue-zague (mesma regra de antes)
-                const offset = [0, 60, 90, 60, 0, -60, -90][idx % 7]
+        <button
+          onClick={() => setSeletorAberto((v) => !v)}
+          aria-haspopup="listbox"
+          aria-expanded={seletorAberto}
+          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-background px-3 py-2 text-xs font-bold text-foreground transition hover:bg-muted"
+        >
+          Alterar matéria
+          <ChevronDown className={cn("size-3.5 transition-transform", seletorAberto && "rotate-180")} />
+        </button>
+
+        {seletorAberto && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setSeletorAberto(false)} />
+            <ul
+              role="listbox"
+              className="absolute right-4 top-[calc(100%+8px)] z-40 w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-lg"
+            >
+              {db.trilhas.map((t, i) => {
+                const Icone = iconePorNome(t.nome)
+                const corItem = corDaTrilha(t, i)
+                const ativa = t.id === trilha.id
                 return (
-                  <div
-                    key={ex.id}
-                    className="flex flex-col items-center"
-                    style={{ transform: `translateX(clamp(-72px, ${offset}px, 72px))` }}
-                  >
+                  <li key={t.id}>
                     <button
-                      disabled={bloqueado}
-                      onClick={() => abrirExercicio(trilha, ex)}
-                      aria-label={`${trilha.nome} nível ${nivel}${bloqueado ? " (bloqueado)" : ""}`}
+                      role="option"
+                      aria-selected={ativa}
+                      onClick={() => selecionarTrilha(t.id)}
                       className={cn(
-                        "relative grid size-16 place-items-center rounded-full text-white shadow-[0_5px_0_0_rgba(0,0,0,0.18)] transition active:translate-y-1 active:shadow-none",
-                        completo && cn(cor.bg),
-                        atual && cn(cor.bg, "ring-4 ring-offset-2", cor.ring, "animate-bounce-soft"),
-                        bloqueado && "cursor-not-allowed bg-muted text-muted-foreground shadow-[0_5px_0_0_rgba(0,0,0,0.06)]",
+                        "flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-bold transition hover:bg-muted",
+                        ativa && corItem.bgSuave,
+                        ativa && corItem.texto,
                       )}
                     >
-                      {completo ? (
-                        <Check className="size-7" strokeWidth={3} />
-                      ) : bloqueado ? (
-                        <Lock className="size-6" />
-                      ) : (
-                        <Star className="size-7 fill-white" />
-                      )}
-                      {atual && (
-                        <span className="absolute -top-8 whitespace-nowrap rounded-full bg-foreground px-2 py-1 text-xs font-extrabold text-background">
-                          COMECE
-                        </span>
-                      )}
+                      <span className={cn("grid size-8 shrink-0 place-items-center rounded-xl text-white", corItem.bg)}>
+                        <Icone className="size-4" />
+                      </span>
+                      {t.nome}
                     </button>
-                    {idx < trilha.exercicios.length - 1 && (
-                      <span className="my-0.5 h-5 w-1.5 rounded-full bg-border" />
-                    )}
-                  </div>
+                  </li>
                 )
               })}
-            </div>
+            </ul>
+          </>
+        )}
+      </div>
 
-            {/* Tarefa cadastrada pelo professor para o nível atual —
-                renderizada fora do zigue-zague (sem transform), num
-                retângulo com largura travada, então nunca estoura a
-                tela mesmo com um texto longo. */}
-            {tarefa && (
-              <div className="mx-auto mt-4 w-full max-w-sm rounded-2xl bg-muted/60 p-4 ring-1 ring-border">
-                <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground">
-                  <ClipboardList className="size-3.5" /> Tarefa do professor
-                </p>
-                <p className="mt-1 line-clamp-1 font-display text-sm font-extrabold">{tarefa.titulo}</p>
-                {tarefa.descricao && (
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{tarefa.descricao}</p>
-                )}
+      {/* Caminho de níveis em cobra — 3 por fileira */}
+      <div className="space-y-16 pt-6">
+        {linhas.map((linha, linhaIdx) => {
+          const invertida = linhaIdx % 2 === 1
+          const temProximaLinha = linhaIdx < linhas.length - 1
+          const ladoDaCurva = invertida ? "left" : "right"
+
+          return (
+            <div key={linhaIdx} className="relative">
+              <div className={cn("flex items-start", invertida ? "flex-row-reverse" : "flex-row")}>
+                {linha.map((ex, idx) => {
+                  const nivel = ex.nivel
+                  const completo = nivel < prog.nivel_atual || prog.completos.includes(ex.id)
+                  // Com o limite diário atingido, nenhum nível novo pode
+                  // ser aberto — só os já completados continuam visíveis
+                  // como concluídos, tudo o mais fica bloqueado.
+                  const bloqueadoPorNivel = nivel > prog.nivel_atual
+                  const bloqueado = bloqueadoPorNivel || (limiteAtingido && !completo)
+                  const atual = !limiteAtingido && nivel === prog.nivel_atual && !completo
+                  const tarefaItem = tarefaDoExercicio(ex)
+                  const naoUltimoDaLinha = idx < linha.length - 1
+                  const linhaAcesa = nivel < prog.nivel_atual
+
+                  return (
+                    <div key={ex.id} className="flex flex-1 items-start">
+                      <div className="flex min-w-0 flex-1 flex-col items-center gap-3 text-center">
+                        <div className="relative">
+                          {atual && (
+                            <ChevronDown
+                              className={cn(
+                                "absolute -top-7 left-1/2 size-5 -translate-x-1/2 animate-bounce-soft drop-shadow-sm",
+                                cor.texto,
+                              )}
+                            />
+                          )}
+                          {/* glow suave atrás do círculo ativo */}
+                          {atual && (
+                            <span
+                              className={cn(
+                                "absolute inset-0 -z-10 rounded-full blur-md opacity-60",
+                                cor.bg,
+                              )}
+                            />
+                          )}
+                          <button
+                            disabled={bloqueado}
+                            onClick={() => abrirExercicio(trilha, ex)}
+                            aria-label={`${trilha.nome} nível ${nivel}${bloqueado ? " (bloqueado)" : ""}`}
+                            className={cn(
+                              "relative grid size-16 shrink-0 place-items-center rounded-full border-[3px] font-display text-base font-extrabold transition-all duration-200 active:scale-95",
+                              completo &&
+                              "border-emerald-500 bg-emerald-500/10 text-emerald-500 shadow-[0_0_0_5px_rgba(16,185,129,0.12)]",
+                              atual &&
+                              cn("bg-background shadow-lg", cor.borda, cor.texto, cor.anel),
+                              bloqueado &&
+                              "cursor-not-allowed border-border/70 bg-muted text-muted-foreground/70",
+                              !bloqueado && "hover:scale-105",
+                            )}
+                          >
+                            {completo ? (
+                              <Check className="size-7" strokeWidth={3} />
+                            ) : bloqueado ? (
+                              <Lock className="size-6" />
+                            ) : (
+                              String(nivel).padStart(2, "0")
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Chip com o título da atividade */}
+                        <div
+                          className={cn(
+                            "min-w-0 max-w-[9.5rem] rounded-xl border px-2.5 py-1.5 transition-colors",
+                            bloqueado
+                              ? "border-transparent bg-transparent"
+                              : "border-border/60 bg-card shadow-sm",
+                          )}
+                        >
+                          <p
+                            className={cn(
+                              "line-clamp-2 text-xs font-extrabold leading-snug",
+                              bloqueado ? "text-muted-foreground/70" : "text-foreground",
+                              atual && cor.texto,
+                            )}
+                          >
+                            {tarefaItem?.titulo ?? `Nível ${nivel}`}
+                          </p>
+                          {tarefaItem?.descricao && !bloqueado && (
+                            <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">
+                              {tarefaItem.descricao}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Linha conectando este item ao próximo na mesma fileira */}
+                      {naoUltimoDaLinha && (
+                        <span
+                          className={cn(
+                            "mt-8 h-[3px] flex-1 shrink-0 self-start rounded-full",
+                            linhaAcesa
+                              ? "bg-emerald-500"
+                              : "border-t-[3px] border-dashed border-border/70 bg-transparent",
+                          )}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-            )}
-          </section>
-        )
-      })}
+
+              {/* Curva conectando esta fileira à próxima (efeito cobra) */}
+              {temProximaLinha && (
+                <div
+                  className={cn(
+                    "absolute top-8 h-[4.75rem] w-8 border-border/70",
+                    ladoDaCurva === "left"
+                      ? "left-0 rounded-bl-[32px] border-b-[3px] border-l-[3px]"
+                      : "right-0 rounded-br-[32px] border-b-[3px] border-r-[3px]",
+                  )}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {tarefa && (
+        <div className="mx-auto mt-2 w-full max-w-sm rounded-2xl bg-muted/60 p-4 ring-1 ring-border">
+          <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground">
+            📋 Tarefa do professor
+          </p>
+          <p className="mt-1 line-clamp-1 font-display text-sm font-extrabold">{tarefa.titulo}</p>
+          {tarefa.descricao && (
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{tarefa.descricao}</p>
+          )}
+        </div>
+      )}
 
       {trilhaAtiva && (
         <ExercicioDialog

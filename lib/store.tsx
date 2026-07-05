@@ -101,7 +101,7 @@ interface StoreCtx {
   responderExercicio: (alunoId: string, exercicioId: string) => { acertou: boolean; xp: number } | null
   fazerCheckin: (alunoId: string) => number | null
   equiparBanner: (alunoId: string, bannerId: string) => void
-  equiparCorNome: (alunoId: string, corId: string) => void 
+  equiparCorNome: (alunoId: string, corId: string) => void
   solicitarResgate: (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, turmaId: string) => void
   // Trilha de Recompensas (ícones de perfil por nível/xp)
   resgatarRecompensaXp: (alunoId: string, recompensaId: number, icone: string) => void
@@ -132,6 +132,7 @@ interface StoreCtx {
   avancarDia: () => void
   simularPresenca: () => void
   simularXP: () => void
+  simularTempoTela: () => void
   resetarDados: () => void
 }
 
@@ -185,7 +186,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ]
         }
 
-         parsed.alunos = parsed.alunos.map((a) => ({
+        parsed.alunos = parsed.alunos.map((a) => ({
           ...a,
           recompensas_resgatadas: a.recompensas_resgatadas ?? [],
           icones_desbloqueados: a.icones_desbloqueados ?? ["default"],
@@ -250,6 +251,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (ready) localStorage.setItem(SESSION_KEY, JSON.stringify({ professorId }))
   }, [professorId, ready])
+
+  // Contador real de tempo de tela do aluno logado. Soma 1 minuto por
+  // minuto real decorrido, só enquanto a aba estiver visível/ativa —
+  // assim não conta tempo com o app em segundo plano ou minimizado.
+  useEffect(() => {
+    if (!ready || !alunoId) return
+
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+
+      setDb((prev) => {
+        const alunos = prev.alunos.map((a) =>
+          a.id === alunoId
+            ? {
+              ...a,
+              tempo_tela_minutos_hoje: a.tempo_tela_minutos_hoje + 1,
+              tempo_tela_minutos_semana: a.tempo_tela_minutos_semana + 1,
+            }
+            : a,
+        )
+        return { ...prev, alunos }
+      })
+    }, 60_000)
+
+    return () => clearInterval(id)
+  }, [ready, alunoId])
 
   const setEscolaId = useCallback(
     (id: string) => {
@@ -367,7 +394,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const alunos = prev.alunos.map((a) => {
         if (a.id !== aid) return a
-        return recalcAluno({ ...a, xp_total: a.xp_total + xp }, prev.banners, prev.cores_nome)  
+        return recalcAluno({ ...a, xp_total: a.xp_total + xp }, prev.banners, prev.cores_nome)
       })
 
       const progresso = prev.progresso.map((p) => {
@@ -401,15 +428,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const alunos = prev.alunos.map((a) =>
         a.id === aid
           ? recalcAluno(
-              {
-                ...a,
-                xp_total: a.xp_total + (jaPresente ? 0 : bonus),
-                streak_dias: novoStreak,
-                ultima_presenca: hoje,
-              },
-              prev.banners,
-              prev.cores_nome,
-            )
+            {
+              ...a,
+              xp_total: a.xp_total + (jaPresente ? 0 : bonus),
+              streak_dias: novoStreak,
+              ultima_presenca: hoje,
+            },
+            prev.banners,
+            prev.cores_nome,
+          )
           : a,
       )
       const presencas = jaPresente
@@ -813,10 +840,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const alunos = prev.alunos.map((a) =>
           a.id === resgate.solicitante_id
             ? recalcAluno(
-                { ...a, xp_total: Math.max(0, a.xp_total - recompensa.custo_xp) },
-                prev.banners,
-                prev.cores_nome
-              )
+              { ...a, xp_total: Math.max(0, a.xp_total - recompensa.custo_xp) },
+              prev.banners,
+              prev.cores_nome
+            )
             : a,
         )
         const next = { ...prev, resgates, alunos }
@@ -856,7 +883,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ultima_presenca: veio ? hoje : a.ultima_presenca,
           xp_total: veio ? a.xp_total + 20 : a.xp_total,
         }
-     }).map((a) => recalcAluno(a, prev.banners, prev.cores_nome))
+      }).map((a) => recalcAluno(a, prev.banners, prev.cores_nome))
       const next = { ...prev, presencas: novasPresencas, alunos }
       return { ...next, squads: recalcSquads(next) }
     })
@@ -872,6 +899,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return { ...next, squads: recalcSquads(next) }
     })
   }, [])
+
+  const simularTempoTela = useCallback(() => {
+    setDb((prev) => {
+      if (!alunoId) return prev
+      const alunos = prev.alunos.map((a) =>
+        a.id === alunoId
+          ? {
+              ...a,
+              tempo_tela_minutos_hoje: a.tempo_tela_minutos_hoje + 5,
+              tempo_tela_minutos_semana: a.tempo_tela_minutos_semana + 5,
+            }
+          : a,
+      )
+      return { ...prev, alunos }
+    })
+  }, [alunoId])
 
   const resetarDados = useCallback(() => {
     const seed = criarSeed()

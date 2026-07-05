@@ -1,7 +1,7 @@
 import type { Raridade } from "./types"
 
 export const XP_POR_NIVEL = 200
-export const META_TELA_DIARIA = 20 // minutos saudáveis por dia
+export const META_TELA_DIARIA = 1 // minutos saudáveis por dia
 
 export function nivelDoXp(xp: number): number {
   return Math.floor(xp / XP_POR_NIVEL) + 1
