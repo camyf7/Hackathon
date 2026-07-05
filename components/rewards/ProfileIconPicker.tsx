@@ -10,7 +10,7 @@ import { RewardIcon } from "./reward-icon"
 import { temaDoIcone } from "@/lib/rewards"
 import type { IconeId } from "@/lib/rewards"
 
-interface ProfileIconPickerProps {
+interface IconPickerProps {
   ownedIcons: string[]
   selectedIcon: string
   onSelect: (icone: string) => void
@@ -22,7 +22,7 @@ export function ProfileIconPicker({
   selectedIcon,
   onSelect,
   className,
-}: ProfileIconPickerProps) {
+}: IconPickerProps) {
   const [escolhido, setEscolhido] = useState<string>(selectedIcon)
   const [confirmado, setConfirmado] = useState(false)
   const alterado = escolhido !== selectedIcon

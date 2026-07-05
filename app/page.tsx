@@ -45,6 +45,11 @@ const itemVariants: Variants = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: pageEase } },
 }
 
+/** Um "avatar" pode ser um emoji (ex: "🦊") ou um caminho de imagem (ex: "/avatar1.png"). */
+function isImagePath(avatar: string): boolean {
+  return avatar.startsWith("/") || avatar.startsWith("http")
+}
+
 export default function HomePage() {
   const router = useRouter()
   const { db, ready, turmaId, setAlunoId } = useStore()
@@ -246,12 +251,15 @@ export default function HomePage() {
 
                     <motion.span
                       whileHover={{ scale: 1.03 }}
-                      className="relative grid size-14 place-items-center overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03] text-3xl"
+                      className="relative grid size-14 place-items-center overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.03]"
                     >
                       {a.icone_selecionado && a.icone_selecionado !== "default" ? (
                         <RewardIcon icone={a.icone_selecionado} className="size-14 rounded-2xl" />
+                      ) : isImagePath(a.avatar) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={a.avatar} alt="" className="size-14 rounded-2xl object-cover" />
                       ) : (
-                        a.avatar
+                        <span className="text-3xl">{a.avatar}</span>
                       )}
                     </motion.span>
 
