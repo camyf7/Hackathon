@@ -108,12 +108,16 @@ function isImagePath(avatar: string): boolean {
  * Foto de perfil exibida no banner. Prioridade:
  * 1. Ícone da Trilha de Recompensas (icone_selecionado), se já houver algum resgatado.
  * 2. Avatar do aluno — pode ser um emoji clássico OU uma imagem (/avatar1.png, /icone13.jpg...).
+ *
+ * O nome usa a classe Tailwind de `corNomeClasse` (vinda de CorNome.classe,
+ * equipada pelo aluno na Trilha de Recompensas). Sem cor equipada, cai no branco padrão.
  */
 export function BannerPerfil({
   banner,
   avatar,
   icone,
   nome,
+  corNomeClasse,
   className,
   children,
 }: {
@@ -121,6 +125,7 @@ export function BannerPerfil({
   avatar: string
   icone?: IconeId | string
   nome?: string
+  corNomeClasse?: string
   className?: string
   children?: React.ReactNode
 }) {
@@ -146,7 +151,12 @@ export function BannerPerfil({
           )}
         </span>
         {nome && (
-          <span className="font-display text-xl font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
+          <span
+            className={cn(
+              "font-display text-xl font-extrabold drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]",
+              corNomeClasse || "text-white",
+            )}
+          >
             {nome}
           </span>
         )}

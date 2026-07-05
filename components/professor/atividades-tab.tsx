@@ -32,9 +32,11 @@ import { formatarDataCurta } from "@/lib/game"
 import {
   AlertTriangle,
   CalendarClock,
+  CheckCircle2,
   ClipboardList,
   Eye,
   FileText,
+  ListChecks,
   Pencil,
   Plus,
   RotateCcw,
@@ -57,6 +59,17 @@ const DIFICULDADES: { value: Dificuldade; label: string }[] = [
   { value: "media", label: "Média" },
   { value: "dificil", label: "Difícil" },
 ]
+
+// ---------- ADICIONADO: tipo de resposta que o professor escolhe ao lançar a atividade ----------
+type TipoResposta = "escrita" | "multipla_escolha"
+
+const TIPOS_RESPOSTA: { value: TipoResposta; label: string }[] = [
+  { value: "escrita", label: "Escrita (entrega livre)" },
+  { value: "multipla_escolha", label: "Múltipla escolha (quiz)" },
+]
+
+const MIN_OPCOES = 2
+const MAX_OPCOES = 6
 
 // Classe compartilhada dos DialogContent desta tela: `overflow-hidden`
 // evita que inputs/botões vazem para fora do canto arredondado do modal.
@@ -243,6 +256,7 @@ function AtividadeCard({
   const concluidos = atividade.alunos_concluidos.length
   const pct = totalAlunos > 0 ? Math.round((concluidos / totalAlunos) * 100) : 0
   const encerrada = atividade.status === "encerrada"
+  const ehQuiz = atividade.tipo_resposta === "multipla_escolha"
 
   return (
     <Card className="p-4">
@@ -261,10 +275,39 @@ function AtividadeCard({
             >
               {encerrada ? "Encerrada" : "Aberta"}
             </span>
+            {ehQuiz && (
+              <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-semibold text-accent-foreground">
+                <ListChecks className="size-3" /> Múltipla escolha
+              </span>
+            )}
           </div>
 
           {atividade.descricao && (
             <p className="mt-1 text-sm text-muted-foreground">{atividade.descricao}</p>
+          )}
+
+          {/* CORRIGIDO: resposta_correta agora é o TEXTO da opção certa, não o índice.
+              A comparação abaixo precisa ser feita pelo texto (op), não por índice (i). */}
+          {ehQuiz && atividade.pergunta && (
+            <div className="mt-2 space-y-1 rounded-2xl border border-border bg-muted/30 p-3">
+              <p className="text-sm font-semibold text-foreground">{atividade.pergunta}</p>
+              <ul className="space-y-1">
+                {(atividade.opcoes ?? []).map((op, i) => (
+                  <li
+                    key={i}
+                    className={cn(
+                      "flex items-center gap-1.5 text-xs",
+                      op === atividade.resposta_correta
+                        ? "font-semibold text-emerald-500"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {op === atividade.resposta_correta && <CheckCircle2 className="size-3.5 shrink-0" />}
+                    {op}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -388,6 +431,14 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
   const [confirmandoExclusaoId, setConfirmandoExclusaoId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // ---------- ADICIONADO: estado do quiz (escrita vs múltipla escolha) ----------
+  const [tipoResposta, setTipoResposta] = useState<TipoResposta>("escrita")
+  const [pergunta, setPergunta] = useState("")
+  const [opcoes, setOpcoes] = useState<string[]>(["", ""])
+  // respostaCorreta continua sendo o ÍNDICE só dentro deste formulário
+  // (facilita marcar o radio button); é convertido para TEXTO só na hora de salvar.
+  const [respostaCorreta, setRespostaCorreta] = useState<number | null>(null)
+
   // Atualiza os anexos ao abrir uma atividade para edição
   useEffect(() => {
     if (editando) {
@@ -404,6 +455,10 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     setDificuldade("media")
     setTrilhaId(db.trilhas[0]?.id ?? "")
     setArquivos([])
+    setTipoResposta("escrita")
+    setPergunta("")
+    setOpcoes(["", ""])
+    setRespostaCorreta(null)
     setOpen(true)
   }
 
@@ -415,6 +470,14 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     setXp(String(a.xp))
     setDificuldade(a.dificuldade)
     setTrilhaId(a.trilha_id ?? db.trilhas[0]?.id ?? "")
+    setTipoResposta(a.tipo_resposta === "multipla_escolha" ? "multipla_escolha" : "escrita")
+    setPergunta(a.pergunta ?? "")
+    setOpcoes(a.opcoes && a.opcoes.length > 0 ? a.opcoes : ["", ""])
+    // CORRIGIDO: resposta_correta é salvo como TEXTO da opção (ex: "Verdadeiro").
+    // Aqui convertemos de volta para o ÍNDICE, procurando a posição do texto
+    // dentro de a.opcoes, para que o radio button certo apareça marcado.
+    const indice = a.opcoes && a.resposta_correta ? a.opcoes.indexOf(a.resposta_correta) : -1
+    setRespostaCorreta(indice >= 0 ? indice : null)
     setOpen(true)
   }
 
@@ -464,6 +527,29 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     })
   }
 
+  // ---------- ADICIONADO: helpers de opções do quiz ----------
+  function atualizarOpcao(indice: number, valor: string) {
+    setOpcoes((prev) => prev.map((op, i) => (i === indice ? valor : op)))
+  }
+
+  function adicionarOpcao() {
+    setOpcoes((prev) => (prev.length >= MAX_OPCOES ? prev : [...prev, ""]))
+  }
+
+  function removerOpcao(indice: number) {
+    setOpcoes((prev) => {
+      if (prev.length <= MIN_OPCOES) return prev
+      const proximas = prev.filter((_, i) => i !== indice)
+      // Ajusta a resposta correta se o índice removido a afetar
+      setRespostaCorreta((atual) => {
+        if (atual === null) return null
+        if (atual === indice) return null
+        return atual > indice ? atual - 1 : atual
+      })
+      return proximas
+    })
+  }
+
   function salvar() {
     if (!titulo.trim()) {
       toast.error("Dê um título para a atividade")
@@ -474,7 +560,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
       return
     }
 
-    const dados = {
+    const dadosBase = {
       titulo: titulo.trim(),
       descricao: descricao.trim(),
       trilha_id: trilhaId,
@@ -482,6 +568,48 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
       xp: Number(xp) || 0,
       dificuldade,
       anexos: arquivos.map((a) => ({ nome: a.nome, tipo: a.tipo })),
+      tipo_resposta: tipoResposta,
+      tipo: tipoResposta === "multipla_escolha" ? ("quiz" as const) : ("lista" as const),
+    }
+
+    // CORRIGIDO: resposta_correta agora é STRING (o texto da opção),
+    // não mais o índice numérico — precisa bater com o formato usado
+    // em store.tsx (concluirAtividade) e em atividade-dialog.tsx.
+    let dados: typeof dadosBase & {
+      pergunta?: string
+      opcoes?: string[]
+      resposta_correta?: string
+    } = dadosBase
+
+    // ---------- ADICIONADO: validação e montagem dos campos do quiz ----------
+    if (tipoResposta === "multipla_escolha") {
+      const perguntaTrim = pergunta.trim()
+      const opcoesValidas = opcoes.map((o) => o.trim()).filter(Boolean)
+
+      if (!perguntaTrim) {
+        toast.error("Escreva a pergunta do quiz")
+        return
+      }
+      if (opcoesValidas.length < MIN_OPCOES) {
+        toast.error(`Adicione pelo menos ${MIN_OPCOES} opções`)
+        return
+      }
+      if (
+        respostaCorreta === null ||
+        respostaCorreta >= opcoesValidas.length ||
+        !opcoesValidas[respostaCorreta]
+      ) {
+        toast.error("Selecione qual opção é a correta")
+        return
+      }
+
+      dados = {
+        ...dadosBase,
+        pergunta: perguntaTrim,
+        opcoes: opcoesValidas,
+        // CORRIGIDO: salva o TEXTO da opção correta, não o índice
+        resposta_correta: opcoesValidas[respostaCorreta],
+      }
     }
 
     if (editando) {
@@ -642,6 +770,81 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                 </Select>
               </div>
             </div>
+
+            {/* ---------- ADICIONADO: seletor de tipo de resposta ---------- */}
+            <div className="space-y-1.5">
+              <Label>Tipo de resposta</Label>
+              <Select value={tipoResposta} onValueChange={(v) => setTipoResposta(v as TipoResposta)}>
+                <SelectTrigger className="w-full rounded-2xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TIPOS_RESPOSTA.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* ---------- ADICIONADO: campos do quiz (só quando múltipla escolha) ---------- */}
+            {tipoResposta === "multipla_escolha" && (
+              <div className="space-y-3 rounded-2xl border border-border bg-muted/30 p-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pergunta-atv">Pergunta</Label>
+                  <Textarea
+                    id="pergunta-atv"
+                    value={pergunta}
+                    onChange={(e) => setPergunta(e.target.value)}
+                    placeholder="Ex: Quanto é 7 + 5?"
+                    className="w-full rounded-2xl bg-background"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Opções (marque a correta)</Label>
+                  <div className="space-y-2">
+                    {opcoes.map((op, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="resposta-correta"
+                          checked={respostaCorreta === i}
+                          onChange={() => setRespostaCorreta(i)}
+                          aria-label={`Marcar opção ${i + 1} como correta`}
+                          className="size-4 shrink-0 accent-primary"
+                        />
+                        <Input
+                          value={op}
+                          onChange={(e) => atualizarOpcao(i, e.target.value)}
+                          placeholder={`Opção ${i + 1}`}
+                          className="w-full rounded-2xl bg-background"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removerOpcao(i)}
+                          disabled={opcoes.length <= MIN_OPCOES}
+                          aria-label={`Remover opção ${i + 1}`}
+                          className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={adicionarOpcao}
+                    disabled={opcoes.length >= MAX_OPCOES}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-primary transition hover:opacity-80 disabled:opacity-40"
+                  >
+                    <Plus className="size-3.5" /> Adicionar opção
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Anexos em PDF</Label>

@@ -32,7 +32,7 @@ export type CategoriaRecompensa =
   | "cinema"
   | "dia_sem_uniforme"
   | "certificado"
-  | "material"
+  | "material"  
 
 export interface Escola {
   id: string
@@ -212,6 +212,10 @@ export interface Atividade {
   criada_em: string
   status: "aberta" | "encerrada"
   alunos_concluidos: string[]
+  tipo_resposta: "multipla_escolha" | "escrita"
+   pergunta?: string
+   opcoes?: string[]          // só quando multipla_escolha
+    resposta_correta?: string  // texto da opção certa  <-- AINDA É NUMBER AQUI
 }
 
 export interface DB {

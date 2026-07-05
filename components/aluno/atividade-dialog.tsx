@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useStore } from "@/lib/store"
 import type { Atividade } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { CalendarClock, CheckCircle2, FileText, Zap } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { CalendarClock, CheckCircle2, Circle, FileText, XCircle, Zap } from "lucide-react"
 import { toast } from "sonner"
 
 const DIFICULDADE_LABEL: Record<string, string> = {
@@ -31,19 +32,43 @@ interface AtividadeDialogProps {
 export function AtividadeDialog({ atividade, alunoId, open, onOpenChange, onConcluir }: AtividadeDialogProps) {
   const { concluirAtividade } = useStore()
   const [enviando, setEnviando] = useState(false)
+  const [respostaSelecionada, setRespostaSelecionada] = useState<number | null>(null)
+
+  const ehQuiz = atividade?.tipo_resposta === "multipla_escolha"
+
+  useEffect(() => {
+    setRespostaSelecionada(null)
+  }, [atividade?.id])
 
   if (!atividade) return null
 
   const jaConcluida = atividade.alunos_concluidos.includes(alunoId)
+  const podeConfirmar = !jaConcluida && (!ehQuiz || respostaSelecionada !== null)
 
   function confirmar() {
-    if (!atividade || jaConcluida) return
+    if (!atividade || jaConcluida || !podeConfirmar) return
     setEnviando(true)
-    concluirAtividade(alunoId, atividade.id)
-    onConcluir(atividade.xp)
-    toast.success(`Atividade concluída! +${atividade.xp} XP`, {
-      icon: <CheckCircle2 className="size-4" />,
-    })
+
+    const textoResposta =
+      ehQuiz && respostaSelecionada !== null
+        ? atividade.opcoes?.[respostaSelecionada]
+        : undefined
+
+    const resultado = concluirAtividade(atividade.id, alunoId, textoResposta)
+    const xpGanho = resultado?.xp ?? 0
+
+    onConcluir(xpGanho)
+
+    if (ehQuiz) {
+      if (resultado?.acertou) {
+        toast.success(`Resposta certa! +${xpGanho} XP`, { icon: <CheckCircle2 className="size-4" /> })
+      } else {
+        toast.error("Não foi dessa vez — sem XP nessa atividade.", { icon: <XCircle className="size-4" /> })
+      }
+    } else {
+      toast.success(`Atividade concluída! +${xpGanho} XP`, { icon: <CheckCircle2 className="size-4" /> })
+    }
+
     setEnviando(false)
     onOpenChange(false)
   }
@@ -72,6 +97,38 @@ export function AtividadeDialog({ atividade, alunoId, open, onOpenChange, onConc
             )}
           </div>
 
+          {ehQuiz && atividade.pergunta && (
+            <div className="space-y-2 rounded-2xl border border-border bg-muted/30 p-3">
+              <p className="text-sm font-bold text-foreground">{atividade.pergunta}</p>
+              <div className="space-y-1.5">
+                {(atividade.opcoes ?? []).map((op, i) => {
+                  const selecionada = respostaSelecionada === i
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={jaConcluida}
+                      onClick={() => setRespostaSelecionada(i)}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition disabled:opacity-60",
+                        selecionada
+                          ? "border-primary bg-primary/10 font-semibold text-foreground"
+                          : "border-border bg-card text-foreground hover:border-primary/40",
+                      )}
+                    >
+                      {selecionada ? (
+                        <CheckCircle2 className="size-4 shrink-0 text-primary" />
+                      ) : (
+                        <Circle className="size-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="min-w-0 flex-1">{op}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {atividade.anexos.length > 0 && (
             <div className="space-y-1.5">
               <p className="text-xs font-bold text-muted-foreground">Material do professor</p>
@@ -91,10 +148,15 @@ export function AtividadeDialog({ atividade, alunoId, open, onOpenChange, onConc
         <DialogFooter>
           <Button
             onClick={confirmar}
-            disabled={jaConcluida || enviando}
+            disabled={!podeConfirmar || enviando}
             className="w-full rounded-2xl py-6 font-bold disabled:opacity-60"
           >
-            <CheckCircle2 className="size-4" /> {jaConcluida ? "Atividade concluída" : "Marcar como concluída"}
+            <CheckCircle2 className="size-4" />{" "}
+            {jaConcluida
+              ? "Atividade concluída"
+              : ehQuiz && respostaSelecionada === null
+                ? "Escolha uma opção"
+                : "Marcar como concluída"}
           </Button>
         </DialogFooter>
       </DialogContent>

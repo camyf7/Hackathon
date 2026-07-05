@@ -59,6 +59,9 @@ function recalcSquads(db: DB): Squad[] {
 
 type AuthResult = { ok: boolean; error?: string }
 
+// ---------- ADICIONADO: tipos de resposta para atividades do tipo quiz ----------
+type TipoResposta = "texto" | "multipla_escolha"
+
 interface AtividadeInput {
   titulo: string
   descricao: string
@@ -66,6 +69,13 @@ interface AtividadeInput {
   xp: number
   dificuldade: Dificuldade
   anexos: { nome: string; tipo: string }[]
+  // ---------- CORRIGIDO: trilha_id agora faz parte do input e é copiado para o objeto final ----------
+  trilha_id: string | null
+  // ---------- ADICIONADO: campos de quiz ----------
+  tipo_resposta?: TipoResposta
+  pergunta?: string | null
+  opcoes?: string[]
+  resposta_correta?: string | null
 }
 
 interface RecompensaInput {
@@ -117,6 +127,12 @@ interface StoreCtx {
   atualizarAtividade: (id: string, dados: AtividadeInput) => void
   encerrarAtividade: (id: string) => void
   removerAtividade: (id: string) => void
+  // ---------- ADICIONADO: conclusão de atividade pelo aluno (usada no AtividadeDialog) ----------
+  concluirAtividade: (
+    atividadeId: string,
+    alunoId: string,
+    respostaEscolhida?: string,
+  ) => { concluida: boolean; acertou?: boolean; xp: number } | null
   // recompensas (professor)
   criarRecompensa: (turmaId: string, dados: RecompensaInput) => void
   atualizarRecompensa: (id: string, dados: RecompensaInput) => void
@@ -617,11 +633,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // ---------- atividades ----------
+  // CORRIGIDO: trilha_id agora é copiado de dados.trilha_id para o objeto Atividade
+  // (antes só existia dentro de `dados` e nunca chegava ao objeto final), e os campos
+  // de quiz (tipo_resposta, pergunta, opcoes, resposta_correta) são persistidos.
   const criarAtividade = useCallback((tId: string, dados: AtividadeInput) => {
     setDb((prev) => {
       const nova: Atividade = {
         id: `atv-${Date.now()}`,
         turma_id: tId,
+        // CORRIGIDO: trilha_id vem de dados.trilha_id (não confundir com turma_id)
+        trilha_id: dados.trilha_id,
         titulo: dados.titulo,
         descricao: dados.descricao,
         prazo: dados.prazo,
@@ -631,6 +652,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         status: "aberta",
         criada_em: new Date().toISOString(),
         alunos_concluidos: [],
+        tipo_resposta: dados.tipo_resposta ?? "texto",
+        pergunta: dados.pergunta ?? null,
+        opcoes: dados.opcoes ?? [],
+        resposta_correta: dados.resposta_correta ?? null,
       }
       return { ...prev, atividades: [...prev.atividades, nova] }
     })
@@ -643,12 +668,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         a.id === id
           ? {
             ...a,
+            // CORRIGIDO: trilha_id agora é atualizado a partir de dados.trilha_id
+            trilha_id: dados.trilha_id,
             titulo: dados.titulo,
             descricao: dados.descricao,
             prazo: dados.prazo,
             xp: dados.xp,
             dificuldade: dados.dificuldade,
             anexos: dados.anexos.map((ax, i) => ({ id: `ax-${Date.now()}-${i}`, nome: ax.nome, tipo: ax.tipo })),
+            tipo_resposta: dados.tipo_resposta ?? a.tipo_resposta ?? "texto",
+            pergunta: dados.pergunta ?? a.pergunta ?? null,
+            opcoes: dados.opcoes ?? a.opcoes ?? [],
+            resposta_correta: dados.resposta_correta ?? a.resposta_correta ?? null,
           }
           : a,
       ),
@@ -667,6 +698,53 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const removerAtividade = useCallback((id: string) => {
     setDb((prev) => ({ ...prev, atividades: prev.atividades.filter((a) => a.id !== id) }))
   }, [])
+
+  // ---------- ADICIONADO: concluirAtividade ----------
+  // Marca a atividade como concluída para o aluno e concede XP. Se a atividade
+  // for do tipo "quiz", compara `respostaEscolhida` com `resposta_correta`:
+  // o XP só é concedido quando a resposta está correta. Atividades do tipo
+  // "texto" concedem XP direto ao marcar como concluída (não há o que corrigir).
+  // Idempotente: clicar de novo em uma atividade já concluída não duplica XP.
+  const concluirAtividade = useCallback(
+    (atividadeId: string, aid: string, respostaEscolhida?: string) => {
+      let resultado: { concluida: boolean; acertou?: boolean; xp: number } | null = null
+
+      setDb((prev) => {
+        const atividade = prev.atividades.find((a) => a.id === atividadeId) // busca com o alunoId, não encontra
+        const aluno = prev.alunos.find((a) => a.id === aid) // busca com o atividadeId, não encontra
+        if (!atividade || !aluno) return prev // sai sem fazer nada
+
+        const jaConcluida = atividade.alunos_concluidos.includes(aid)
+        if (jaConcluida) {
+          resultado = { concluida: true, xp: 0 }
+          return prev
+        }
+
+        const ehQuiz = atividade.tipo_resposta === "multipla_escolha"
+        const acertou = ehQuiz ? respostaEscolhida === atividade.resposta_correta : undefined
+        const ganhaXp = ehQuiz ? acertou === true : true
+        const xp = ganhaXp ? atividade.xp : 0
+
+        resultado = { concluida: true, acertou, xp }
+
+        const atividades = prev.atividades.map((a) =>
+          a.id === atividadeId ? { ...a, alunos_concluidos: [...a.alunos_concluidos, aid] } : a,
+        )
+
+        const alunos = xp > 0
+          ? prev.alunos.map((a) =>
+            a.id === aid ? recalcAluno({ ...a, xp_total: a.xp_total + xp }, prev.banners, prev.cores_nome) : a,
+          )
+          : prev.alunos
+
+        const next = { ...prev, atividades, alunos }
+        return { ...next, squads: recalcSquads(next) }
+      })
+
+      return resultado
+    },
+    [],
+  )
 
   // ---------- recompensas ----------
   const criarRecompensa = useCallback((tId: string, dados: RecompensaInput) => {
@@ -971,6 +1049,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       atualizarAtividade,
       encerrarAtividade,
       removerAtividade,
+      concluirAtividade,
       criarRecompensa,
       atualizarRecompensa,
       alternarStatusRecompensa,
@@ -984,6 +1063,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       avancarDia,
       simularPresenca,
       simularXP,
+      simularTempoTela,
       resetarDados,
     }),
     [
@@ -1006,6 +1086,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       fazerCheckin,
       ganharXpExtra,
       equiparBanner,
+      equiparCorNome,
       solicitarResgate,
       resgatarRecompensaXp,
       selecionarIconePerfil,
@@ -1017,6 +1098,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       atualizarAtividade,
       encerrarAtividade,
       removerAtividade,
+      concluirAtividade,
       criarRecompensa,
       atualizarRecompensa,
       alternarStatusRecompensa,
@@ -1030,6 +1112,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       avancarDia,
       simularPresenca,
       simularXP,
+      simularTempoTela,
       resetarDados,
     ],
   )
