@@ -1,10 +1,11 @@
-  "use client"
+"use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { useStore } from "@/lib/store"
 import { StreakFlame } from "@/components/brand"
+import { RewardIcon } from "@/components/rewards/reward-icon"
 import { SchoolTurmaSelector } from "@/components/school-turma-selector"
 import { DemoBar } from "@/components/demo-bar"
 
@@ -110,8 +111,12 @@ export default function HomePage() {
                   onClick={() => entrarComoAluno(a.id)}
                   className="group flex flex-col items-center gap-2 rounded-3xl border border-white/60 bg-white/90 p-4 text-center shadow-sm transition hover:-translate-y-1 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
-                  <span className="grid size-14 place-items-center rounded-2xl bg-muted text-3xl transition group-hover:bg-primary/10">
-                    {a.avatar}
+                  <span className="grid size-14 place-items-center overflow-hidden rounded-2xl bg-muted text-3xl transition group-hover:bg-primary/10">
+                    {a.icone_selecionado && a.icone_selecionado !== "default" ? (
+                      <RewardIcon icone={a.icone_selecionado} className="size-14 rounded-2xl" />
+                    ) : (
+                      a.avatar
+                    )}
                   </span>
                   <span className="line-clamp-1 font-display font-extrabold text-slate-700">
                     {a.nome}

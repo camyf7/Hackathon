@@ -2,10 +2,9 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { Flame } from "lucide-react";
 import type { Banner } from "@/lib/types";
-import { progressoNivel, xpNoNivel, XP_POR_NIVEL } from "@/lib/game";
+import type { IconeId } from "@/lib/rewards";
 import { RewardIcon } from "@/components/rewards/reward-icon";
-import { temaDoIcone } from "@/lib/rewards"
-import type { IconeId } from "@/lib/rewards"
+import { progressoNivel, xpNoNivel, XP_POR_NIVEL } from "@/lib/game";
 
 
 export function Logo({ className }: { className?: string }) {
@@ -100,25 +99,27 @@ export function XpBar({
   )
 }
 
+/**
+ * Foto de perfil exibida no banner. Prioriza o ícone da Trilha de Recompensas
+ * (icone_selecionado); se o aluno ainda não tiver nenhum ícone resgatado
+ * ("default"/ausente), cai de volta pro emoji de avatar clássico.
+ */
 export function BannerPerfil({
   banner,
   avatar,
-  iconeSelecionado,
+  icone,
   nome,
-  corNomeClasse,
   className,
   children,
 }: {
   banner: Banner | undefined
   avatar: string
-  iconeSelecionado?: string
+  icone?: IconeId | string
   nome?: string
-  corNomeClasse?: string
   className?: string
   children?: React.ReactNode
 }) {
-  const temIcone = iconeSelecionado && iconeSelecionado !== "default"
-  const tema = temIcone ? temaDoIcone(iconeSelecionado as IconeId) : null
+  const temIconeRecompensa = !!icone && icone !== "default"
 
   return (
     <div
@@ -129,26 +130,21 @@ export function BannerPerfil({
       )}
     >
       <div className="flex items-center gap-3">
-        <span
-          className={cn(
-            "grid size-16 shrink-0 place-items-center rounded-2xl bg-white/85 text-4xl shadow-md",
-            temIcone ? tema!.text : "text-foreground",
+        <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/85 text-4xl shadow-md">
+          {temIconeRecompensa ? (
+            <RewardIcon icone={icone!} className="size-16 rounded-2xl" />
+          ) : (
+            avatar
           )}
-        >
-          {temIcone ? <RewardIcon icone={iconeSelecionado!} className="size-9" /> : avatar}
         </span>
         {nome && (
-          <span
-            className={cn(
-              "font-display text-xl font-extrabold drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]",
-              corNomeClasse ?? "text-white",
-            )}
-          >
+          <span className="font-display text-xl font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
             {nome}
           </span>
         )}
       </div>
       {children}
     </div>
+
   )
 }

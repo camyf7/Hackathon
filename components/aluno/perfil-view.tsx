@@ -7,10 +7,18 @@ import { useStore } from "@/lib/store"
 import { BannerPerfil, XpBar, XpShieldIcon } from "@/components/brand"
 import { BADGES, META_TELA_DIARIA } from "@/lib/game"
 import { cn } from "@/lib/utils"
-import { Clock, Flame, Trophy } from "lucide-react"
+import { Clock, Flame, Pencil, Trophy } from "lucide-react"
 import { useRewards } from "@/hooks/useRewards"
 import { ProfileIconPicker } from "@/components/rewards/ProfileIconPicker"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { toast } from "sonner"
 
 /** Milissegundos restantes até a próxima meia-noite (horário do dispositivo). */
@@ -30,12 +38,18 @@ function formatarContagem(ms: number): string {
   return `${h}h ${min}min`
 }
 
+// Avatares disponíveis para o aluno escolher ao editar o perfil (usados apenas
+// como fallback enquanto nenhum ícone da Trilha de Recompensas é escolhido)
+const AVATARES_DISPONIVEIS = [
+  "🦊", "🐼", "🦁", "🐨", "🐸", "🦉", "🐙", "🦄",
+  "🐵", "🐯", "🐧", "🦖", "🐢", "🐝", "🦋",
+]
+
 export function PerfilView({ aluno }: { aluno: Aluno }) {
-  const { db } = useStore()
+  const { db, atualizarAluno } = useStore()
   const router = useRouter()
   const { ownedIcons, selectedIcon, escolherIcone } = useRewards(aluno.id)
   const banner = db.banners.find((b) => b.id === aluno.banner_equipado)
-  const corNome = db.cores_nome.find((c) => c.id === aluno.cor_nome_equipada)  // ← nova linha
   const turma = db.turmas.find((t) => t.id === aluno.turma_id)
 
   const minHoje = aluno.tempo_tela_minutos_hoje
@@ -62,18 +76,49 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [atingiuMeta, aluno.id, db.data_atual])
 
+  // ---------- Edição de perfil ----------
+  const [editando, setEditando] = useState(false)
+  const [nomeEdit, setNomeEdit] = useState(aluno.nome)
+  const [avatarEdit, setAvatarEdit] = useState(aluno.avatar)
+
+  function abrirEdicao() {
+    setNomeEdit(aluno.nome)
+    setAvatarEdit(aluno.avatar)
+    setEditando(true)
+  }
+
+  function salvarEdicao() {
+    const nomeLimpo = nomeEdit.trim()
+    if (!nomeLimpo) {
+      toast.error("O nome não pode ficar vazio.")
+      return
+    }
+    atualizarAluno(aluno.id, nomeLimpo, avatarEdit)
+    toast.success("Perfil atualizado!")
+    setEditando(false)
+  }
+
   return (
     <div className="space-y-4 pb-4">
-     <BannerPerfil banner={banner} avatar={aluno.avatar} iconeSelecionado={selectedIcon} nome={aluno.nome} corNomeClasse={corNome?.classe}>
-        <div className="mt-3 flex items-center gap-2">
-          <span className="rounded-full bg-white/85 px-3 py-1 font-display text-sm font-extrabold text-black">
-            Nível {aluno.nivel}
-          </span>
-          <span className="rounded-full bg-white/85 px-3 py-1 text-sm font-extrabold text-black">
-            {turma?.nome}
-          </span>
-        </div>
-      </BannerPerfil>
+      <div className="relative">
+        <BannerPerfil banner={banner} avatar={aluno.avatar} icone={selectedIcon} nome={aluno.nome}>
+          <div className="mt-3 flex items-center gap-2">
+            <span className="rounded-full bg-white/85 px-3 py-1 font-display text-sm font-extrabold text-slate-800">
+              Nível {aluno.nivel}
+            </span>
+            <span className="rounded-full bg-white/85 px-3 py-1 text-sm font-bold text-slate-800">
+              {turma?.nome}
+            </span>
+          </div>
+        </BannerPerfil>
+        <button
+          onClick={abrirEdicao}
+          aria-label="Editar perfil"
+          className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-white/85 text-slate-800 shadow-md transition hover:bg-white"
+        >
+          <Pencil className="size-4" />
+        </button>
+      </div>
 
       <div className="rounded-3xl bg-card p-4 shadow-sm ring-1 ring-border">
         <div className="mb-2 flex items-center justify-between">
@@ -177,6 +222,60 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
           })}
         </div>
       </div>
+
+      {/* Diálogo de edição de perfil */}
+      <Dialog open={editando} onOpenChange={setEditando}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display font-extrabold">Editar perfil</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-muted-foreground">Nome</label>
+              <Input
+                value={nomeEdit}
+                onChange={(e) => setNomeEdit(e.target.value)}
+                maxLength={40}
+                placeholder="Seu nome"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-muted-foreground">
+                Avatar (usado se você ainda não tiver ícones da Trilha de Recompensas)
+              </label>
+              <div className="grid grid-cols-5 gap-2">
+                {AVATARES_DISPONIVEIS.map((av) => (
+                  <button
+                    key={av}
+                    type="button"
+                    onClick={() => setAvatarEdit(av)}
+                    aria-label={`Escolher avatar ${av}`}
+                    className={cn(
+                      "grid aspect-square place-items-center rounded-2xl text-2xl transition",
+                      avatarEdit === av
+                        ? "bg-primary/15 ring-2 ring-primary"
+                        : "bg-muted hover:bg-muted/70",
+                    )}
+                  >
+                    {av}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setEditando(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={salvarEdicao} className="font-bold">
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

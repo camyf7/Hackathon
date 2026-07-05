@@ -27,18 +27,18 @@ export interface Recompensa {
 export const ICONE_PADRAO: IconeId = "default"
 
 export const RECOMPENSAS: Recompensa[] = [
-  { id: 1, nivelNecessario: 2, nome: "Escudo Azul", icone: "shield" },
-  { id: 2, nivelNecessario: 3, nome: "Estrela Dourada", icone: "star" },
-  { id: 3, nivelNecessario: 4, nome: "Livro do Saber", icone: "book" },
-  { id: 4, nivelNecessario: 5, nome: "Medalha de Mérito", icone: "medal" },
-  { id: 5, nivelNecessario: 6, nome: "Foguete", icone: "rocket" },
-  { id: 6, nivelNecessario: 7, nome: "Coroa", icone: "crown" },
-  { id: 7, nivelNecessario: 8, nome: "Lâmpada de Ideias", icone: "lightbulb" },
-  { id: 8, nivelNecessario: 9, nome: "Diamante", icone: "gem" },
-  { id: 9, nivelNecessario: 10, nome: "Troféu", icone: "trophy" },
-  { id: 10, nivelNecessario: 11, nome: "Planeta", icone: "planet" },
-  { id: 11, nivelNecessario: 12, nome: "Raio", icone: "bolt" },
-  { id: 12, nivelNecessario: 13, nome: "Montanha", icone: "mountain" },
+  { id: 1, nivelNecessario: 2, nome: "Boboo Azul", icone: "shield" },
+  { id: 2, nivelNecessario: 3, nome: "Raposa Dourada", icone: "star" },
+  { id: 3, nivelNecessario: 4, nome: "purple owl", icone: "book" },
+  { id: 4, nivelNecessario: 5, nome: "little white", icone: "medal" },
+  { id: 5, nivelNecessario: 6, nome: "Polvete", icone: "rocket" },
+  { id: 6, nivelNecessario: 7, nome: "Wolf", icone: "crown" },
+  { id: 7, nivelNecessario: 8, nome: "Mr. P", icone: "lightbulb" },
+  { id: 8, nivelNecessario: 9, nome: "spotted", icone: "gem" },
+  { id: 9, nivelNecessario: 10, nome: "Robot", icone: "trophy" },
+  { id: 10, nivelNecessario: 11, nome: "Faisca", icone: "planet" },
+  { id: 11, nivelNecessario: 12, nome: "Saturnito", icone: "bolt" },
+  { id: 12, nivelNecessario: 13, nome: "Pascal ", icone: "mountain" },
 ]
 
 export function recompensaPorId(id: number): Recompensa | undefined {
