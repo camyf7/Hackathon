@@ -1,10 +1,25 @@
 "use client"
 
+import { motion } from "framer-motion"
 import { useStore } from "@/lib/store"
 import { Card } from "@/components/ui/card"
 import { META_TELA_DIARIA } from "@/lib/game"
 import { Activity, Clock, TrendingUp, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+const ease = [0.16, 1, 0.3, 1] as const
+
+const containerVariants = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.06 },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease } },
+}
 
 export function DashboardTab({ turmaId }: { turmaId: string }) {
   const { db } = useStore()
@@ -36,108 +51,174 @@ export function DashboardTab({ turmaId }: { turmaId: string }) {
 
   const maxXp = Math.max(1, ...alunos.map((a) => a.xp_total))
 
+  const rankingXp = [...alunos].sort((a, b) => b.xp_total - a.xp_total)
+  const rankingTela = [...alunos].sort(
+    (a, b) => b.tempo_tela_minutos_semana - a.tempo_tela_minutos_semana,
+  )
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard icon={<TrendingUp className="size-5" />} cor="bg-brand-green" label="XP médio" valor={`${xpMedio}`} />
-        <StatCard icon={<Activity className="size-5" />} cor="bg-brand-turquoise" label="Frequência (7d)" valor={`${freq}%`} />
-        <StatCard icon={<Users className="size-5" />} cor="bg-brand-purple" label="Squads ativos" valor={`${squads.length}`} />
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="space-y-4"
+    >
+      <motion.div variants={itemVariants} className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard
+          icon={<TrendingUp className="size-5" />}
+          tone="emerald"
+          label="XP médio"
+          valor={`${xpMedio}`}
+        />
+        <StatCard
+          icon={<Activity className="size-5" />}
+          tone="sky"
+          label="Frequência (7d)"
+          valor={`${freq}%`}
+        />
+        <StatCard
+          icon={<Users className="size-5" />}
+          tone="violet"
+          label="Squads ativos"
+          valor={`${squads.length}`}
+        />
         <StatCard
           icon={<Clock className="size-5" />}
-          cor={telaMediaDia > META_TELA_DIARIA * 1.5 ? "bg-brand-pink" : "bg-brand-orange"}
+          tone={telaMediaDia > META_TELA_DIARIA * 1.5 ? "rose" : "amber"}
           label="Tela média/dia"
           valor={`${telaMediaDia}min`}
         />
-      </div>
+      </motion.div>
 
       {/* Engajamento por aluno */}
-      <Card className="p-4">
-        <h3 className="mb-3 font-display text-lg font-extrabold">Engajamento por aluno (XP)</h3>
-        <div className="space-y-2.5">
-          {[...alunos]
-            .sort((a, b) => b.xp_total - a.xp_total)
-            .map((a) => (
-              <div key={a.id} className="flex items-center gap-3">
-                <span className="w-32 shrink-0 truncate text-sm font-bold">
-                  {a.avatar} {a.nome.split(" ")[0]}
-                </span>
-                <div className="h-5 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="flex h-full items-center justify-end rounded-full bg-brand-green pr-2 text-[10px] font-extrabold text-primary-foreground transition-all duration-700"
-                    style={{ width: `${Math.max(8, (a.xp_total / maxXp) * 100)}%` }}
-                  >
-                    {a.xp_total}
+      <motion.div variants={itemVariants}>
+        <Card className="p-5">
+          <h3 className="mb-4 font-display text-base font-bold text-foreground">
+            Engajamento por aluno
+          </h3>
+
+          {alunos.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Nenhum aluno cadastrado nesta turma.
+            </p>
+          ) : (
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+              className="space-y-3"
+            >
+              {rankingXp.map((a) => (
+                <motion.div key={a.id} variants={itemVariants} className="flex items-center gap-3">
+                  <span className="w-28 shrink-0 truncate text-sm font-semibold text-foreground">
+                    {a.nome.split(" ")[0]}
+                  </span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <motion.div
+                      className="h-full rounded-full bg-emerald-500"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.max(4, (a.xp_total / maxXp) * 100)}%` }}
+                      transition={{ duration: 0.6, ease }}
+                    />
                   </div>
-                </div>
-              </div>
-            ))}
-          {alunos.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">Nenhum aluno cadastrado nesta turma.</p>
+                  <span className="w-14 shrink-0 text-right text-xs font-bold tabular-nums text-muted-foreground">
+                    {a.xp_total} xp
+                  </span>
+                </motion.div>
+              ))}
+            </motion.div>
           )}
-        </div>
-      </Card>
+        </Card>
+      </motion.div>
 
       {/* Tempo de tela por aluno */}
-      <Card className="p-4">
-        <h3 className="mb-1 font-display text-lg font-extrabold">Tempo de tela — últimos 7 dias</h3>
-        <p className="mb-3 text-xs font-semibold text-muted-foreground">
-          Identifique baixo engajamento e uso excessivo. Nunca exibido entre os alunos.
-        </p>
-        <div className="space-y-2.5">
-          {[...alunos]
-            .sort((a, b) => b.tempo_tela_minutos_semana - a.tempo_tela_minutos_semana)
-            .map((a) => {
+      <motion.div variants={itemVariants}>
+        <Card className="p-5">
+          <h3 className="font-display text-base font-bold text-foreground">
+            Tempo de tela — últimos 7 dias
+          </h3>
+          <p className="mb-4 mt-0.5 text-xs text-muted-foreground">
+            Identifica baixo engajamento e uso excessivo. Não é exibido aos alunos.
+          </p>
+
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className="space-y-3"
+          >
+            {rankingTela.map((a) => {
               const diaMedia = Math.round(a.tempo_tela_minutos_semana / 7)
               const excessivo = diaMedia > META_TELA_DIARIA * 1.5
               const baixo = diaMedia < META_TELA_DIARIA * 0.4
+
               return (
-                <div key={a.id} className="flex items-center gap-3">
-                  <span className="w-32 shrink-0 truncate text-sm font-bold">
-                    {a.avatar} {a.nome.split(" ")[0]}
+                <motion.div key={a.id} variants={itemVariants} className="flex items-center gap-3">
+                  <span className="w-28 shrink-0 truncate text-sm font-semibold text-foreground">
+                    {a.nome.split(" ")[0]}
                   </span>
-                  <div className="h-5 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <motion.div
                       className={cn(
-                        "h-full rounded-full transition-all duration-700",
-                        excessivo ? "bg-brand-pink" : baixo ? "bg-brand-orange" : "bg-brand-turquoise",
+                        "h-full rounded-full",
+                        excessivo ? "bg-rose-500" : baixo ? "bg-amber-500" : "bg-sky-500",
                       )}
-                      style={{ width: `${Math.min(100, (a.tempo_tela_minutos_semana / 350) * 100)}%` }}
+                      initial={{ width: 0 }}
+                      animate={{
+                        width: `${Math.min(100, (a.tempo_tela_minutos_semana / 350) * 100)}%`,
+                      }}
+                      transition={{ duration: 0.6, ease }}
                     />
                   </div>
                   <span
                     className={cn(
-                      "w-20 shrink-0 text-right text-xs font-extrabold",
-                      excessivo ? "text-brand-pink" : baixo ? "text-brand-orange" : "text-muted-foreground",
+                      "w-20 shrink-0 text-right text-xs font-bold tabular-nums",
+                      excessivo
+                        ? "text-rose-500"
+                        : baixo
+                          ? "text-amber-500"
+                          : "text-muted-foreground",
                     )}
                   >
                     {diaMedia}min/dia
                   </span>
-                </div>
+                </motion.div>
               )
             })}
-        </div>
-      </Card>
-    </div>
+          </motion.div>
+        </Card>
+      </motion.div>
+    </motion.div>
   )
 }
 
+const TONE_STYLES = {
+  emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  violet: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  rose: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+} as const
+
 function StatCard({
   icon,
-  cor,
+  tone,
   label,
   valor,
 }: {
   icon: React.ReactNode
-  cor: string
+  tone: keyof typeof TONE_STYLES
   label: string
   valor: string
 }) {
   return (
-    <Card className="flex items-center gap-3 p-3">
-      <span className={cn("grid size-10 shrink-0 place-items-center rounded-2xl text-white", cor)}>{icon}</span>
+    <Card className="flex items-center gap-3 p-4 transition-shadow hover:shadow-md">
+      <span className={cn("grid size-10 shrink-0 place-items-center rounded-2xl", TONE_STYLES[tone])}>
+        {icon}
+      </span>
       <div className="min-w-0">
-        <p className="font-display text-xl font-extrabold leading-none">{valor}</p>
-        <p className="truncate text-xs font-bold text-muted-foreground">{label}</p>
+        <p className="font-display text-xl font-bold leading-none text-foreground">{valor}</p>
+        <p className="truncate text-xs font-semibold text-muted-foreground">{label}</p>
       </div>
     </Card>
   )

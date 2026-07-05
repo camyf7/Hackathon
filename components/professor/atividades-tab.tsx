@@ -46,6 +46,10 @@ import {
 import { toast } from "sonner"
 import type { Atividade, Dificuldade } from "@/lib/types"
 
+/* ------------------------------------------------------------------ */
+/*  Constantes e helpers                                               */
+/* ------------------------------------------------------------------ */
+
 const ANEXOS_STORAGE_KEY = "trilha-plus-anexos-v1"
 
 const DIFICULDADES: { value: Dificuldade; label: string }[] = [
@@ -53,6 +57,10 @@ const DIFICULDADES: { value: Dificuldade; label: string }[] = [
   { value: "media", label: "Média" },
   { value: "dificil", label: "Difícil" },
 ]
+
+// Classe compartilhada dos DialogContent desta tela: `overflow-hidden`
+// evita que inputs/botões vazem para fora do canto arredondado do modal.
+const DIALOG_CONTENT_CLASS = "overflow-hidden rounded-3xl box-border"
 
 type AnexoArquivo = { nome: string; tipo: string; dataUrl: string }
 type AnexosBucket = Record<string, AnexoArquivo[]>
@@ -94,8 +102,7 @@ function formatarTamanho(dataUrl: string) {
 // conseguem exibir de forma confiável dentro de um iframe.
 function dataUrlParaBlobUrl(dataUrl: string): string {
   const [header, base64] = dataUrl.split(",")
-  const mimeMatch = header.match(/data:(.*);base64/)
-  const mime = mimeMatch?.[1] || "application/pdf"
+  const mime = header.match(/data:(.*);base64/)?.[1] || "application/pdf"
 
   const binario = atob(base64)
   const bytes = new Uint8Array(binario.length)
@@ -103,25 +110,24 @@ function dataUrlParaBlobUrl(dataUrl: string): string {
     bytes[i] = binario.charCodeAt(i)
   }
 
-  const blob = new Blob([bytes], { type: mime })
-  return URL.createObjectURL(blob)
+  return URL.createObjectURL(new Blob([bytes], { type: mime }))
 }
 
-// Componente de visualização de PDF
+/* ------------------------------------------------------------------ */
+/*  Visualização de PDF                                                */
+/* ------------------------------------------------------------------ */
+
 function PDFPreview({ arquivo, onClose }: { arquivo: AnexoArquivo | null; onClose: () => void }) {
   const [loadError, setLoadError] = useState(false)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Converte o PDF salvo (base64) em uma blob: URL de verdade ao trocar de arquivo.
   useEffect(() => {
     setLoadError(false)
-
     if (!arquivo) {
       setBlobUrl(null)
       return
     }
-
     try {
       const url = dataUrlParaBlobUrl(arquivo.dataUrl)
       setBlobUrl(url)
@@ -134,8 +140,7 @@ function PDFPreview({ arquivo, onClose }: { arquivo: AnexoArquivo | null; onClos
   function tentarNovamente() {
     if (!arquivo) return
     try {
-      const url = dataUrlParaBlobUrl(arquivo.dataUrl)
-      setBlobUrl(url)
+      setBlobUrl(dataUrlParaBlobUrl(arquivo.dataUrl))
       setLoadError(false)
     } catch {
       setLoadError(true)
@@ -151,41 +156,39 @@ function PDFPreview({ arquivo, onClose }: { arquivo: AnexoArquivo | null; onClos
             {arquivo?.nome}
           </SheetTitle>
         </SheetHeader>
+
         <div className="mt-4 h-[calc(100vh-120px)] w-full overflow-hidden rounded-lg border border-border bg-muted/30">
           {arquivo && (
-            <>
-              {loadError || !blobUrl ? (
-                <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-                  <FileText className="size-16 text-muted-foreground" />
-                  <p className="text-muted-foreground">
-                    Não foi possível visualizar o PDF diretamente.
-                  </p>
-                  <div className="flex gap-3">
-                    <a
-                      href={blobUrl ?? arquivo.dataUrl}
-                      download={arquivo.nome}
-                      className="rounded-2xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:opacity-90"
-                    >
-                      Baixar PDF
-                    </a>
-                    <button
-                      onClick={tentarNovamente}
-                      className="rounded-2xl bg-muted px-4 py-2 text-sm font-bold text-foreground transition hover:bg-muted/80"
-                    >
-                      Tentar novamente
-                    </button>
-                  </div>
+            loadError || !blobUrl ? (
+              <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                <FileText className="size-16 text-muted-foreground" />
+                <p className="text-muted-foreground">
+                  Não foi possível visualizar o PDF diretamente.
+                </p>
+                <div className="flex gap-3">
+                  <a
+                    href={blobUrl ?? arquivo.dataUrl}
+                    download={arquivo.nome}
+                    className="rounded-2xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground transition hover:opacity-90"
+                  >
+                    Baixar PDF
+                  </a>
+                  <button
+                    onClick={tentarNovamente}
+                    className="rounded-2xl bg-muted px-4 py-2 text-sm font-bold text-foreground transition hover:bg-muted/80"
+                  >
+                    Tentar novamente
+                  </button>
                 </div>
-              ) : (
-                <iframe
-                  ref={iframeRef}
-                  src={blobUrl}
-                  className="h-full w-full"
-                  title={`Visualização do PDF: ${arquivo.nome}`}
-                  onError={() => setLoadError(true)}
-                />
-              )}
-            </>
+              </div>
+            ) : (
+              <iframe
+                src={blobUrl}
+                className="h-full w-full"
+                title={`Visualização do PDF: ${arquivo.nome}`}
+                onError={() => setLoadError(true)}
+              />
+            )
           )}
         </div>
       </SheetContent>
@@ -193,16 +196,147 @@ function PDFPreview({ arquivo, onClose }: { arquivo: AnexoArquivo | null; onClos
   )
 }
 
+/* ------------------------------------------------------------------ */
+/*  Chip de anexo (usado no card da atividade)                        */
+/* ------------------------------------------------------------------ */
+
+function AnexoChip({ arquivo, onVisualizar }: { arquivo: AnexoArquivo; onVisualizar: () => void }) {
+  return (
+    <div className="flex items-center gap-1 rounded-full border border-border bg-muted/50 py-1 pl-2 pr-1 text-xs font-medium text-foreground">
+      <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="max-w-[120px] truncate">{arquivo.nome}</span>
+      <button
+        onClick={onVisualizar}
+        aria-label={`Visualizar ${arquivo.nome}`}
+        title="Visualizar PDF"
+        className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+      >
+        <Eye className="size-3.5" />
+      </button>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Card de atividade                                                  */
+/* ------------------------------------------------------------------ */
+
+function AtividadeCard({
+  atividade,
+  totalAlunos,
+  nomeTrilha,
+  anexos,
+  onEditar,
+  onAlternarStatus,
+  onExcluir,
+  onVisualizarAnexo,
+}: {
+  atividade: Atividade
+  totalAlunos: number
+  nomeTrilha: string
+  anexos: AnexoArquivo[]
+  onEditar: () => void
+  onAlternarStatus: () => void
+  onExcluir: () => void
+  onVisualizarAnexo: (arquivo: AnexoArquivo) => void
+}) {
+  const concluidos = atividade.alunos_concluidos.length
+  const pct = totalAlunos > 0 ? Math.round((concluidos / totalAlunos) * 100) : 0
+  const encerrada = atividade.status === "encerrada"
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-display font-bold text-foreground">{atividade.titulo}</p>
+            <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">
+              {nomeTrilha}
+            </span>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                encerrada ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary",
+              )}
+            >
+              {encerrada ? "Encerrada" : "Aberta"}
+            </span>
+          </div>
+
+          {atividade.descricao && (
+            <p className="mt-1 text-sm text-muted-foreground">{atividade.descricao}</p>
+          )}
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <span>+{atividade.xp} XP</span>
+            <span className="capitalize">{atividade.dificuldade}</span>
+            {atividade.prazo && (
+              <span className="flex items-center gap-1">
+                <CalendarClock className="size-3.5" /> {formatarDataCurta(atividade.prazo)}
+              </span>
+            )}
+          </div>
+
+          {anexos.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {anexos.map((ax) => (
+                <AnexoChip key={ax.nome} arquivo={ax} onVisualizar={() => onVisualizarAnexo(ax)} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={onEditar}
+            aria-label="Editar atividade"
+            className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
+          >
+            <Pencil className="size-4" />
+          </button>
+          <button
+            onClick={onAlternarStatus}
+            aria-label={encerrada ? "Reabrir atividade" : "Encerrar atividade"}
+            title={encerrada ? "Reabrir atividade" : "Encerrar atividade"}
+            className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
+          >
+            {encerrada ? <RotateCcw className="size-4" /> : <XCircle className="size-4" />}
+          </button>
+          <button
+            onClick={onExcluir}
+            aria-label="Remover atividade"
+            className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
+        </div>
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {concluidos}/{totalAlunos}
+        </span>
+      </div>
+    </Card>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Componente principal                                               */
+/* ------------------------------------------------------------------ */
+
 export function AtividadesTab({ turmaId }: { turmaId: string }) {
   const { db, criarAtividade, atualizarAtividade, encerrarAtividade, removerAtividade } = useStore()
 
   // Trilhas reais do banco (Matemática, Português, Ciências, História, Inglês...).
-  // É o mesmo id usado em `trilha_id` da Atividade, que é o que faz a
-  // atividade aparecer como etapa na trilha do aluno.
+  // É o mesmo id usado em `trilha_id` da Atividade — o que faz a atividade
+  // aparecer como etapa na trilha do aluno.
   const trilhasDisponiveis = db.trilhas
-  function nomeTrilha(trilhaId: string) {
-    return trilhasDisponiveis.find((t) => t.id === trilhaId)?.nome ?? trilhaId
-  }
+  const nomeTrilha = (trilhaId: string) =>
+    trilhasDisponiveis.find((t) => t.id === trilhaId)?.nome ?? trilhaId
 
   const alunosTurma = db.alunos.filter((a) => a.turma_id === turmaId)
   const atividades = db.atividades
@@ -254,7 +388,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
   const [confirmandoExclusaoId, setConfirmandoExclusaoId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Atualiza os anexos quando editar uma atividade
+  // Atualiza os anexos ao abrir uma atividade para edição
   useEffect(() => {
     if (editando) {
       setArquivos(anexosBucket[editando.id] ?? [])
@@ -289,12 +423,10 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     e.target.value = ""
     if (files.length === 0) return
 
-    const invalidos = files.filter((f) => f.type !== "application/pdf")
-    if (invalidos.length > 0) {
+    const validos = files.filter((f) => f.type === "application/pdf")
+    if (validos.length < files.length) {
       toast.error("Só é possível anexar arquivos em PDF")
     }
-
-    const validos = files.filter((f) => f.type === "application/pdf")
     if (validos.length === 0) return
 
     setEnviando(true)
@@ -368,10 +500,6 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     setOpen(false)
   }
 
-  function pedirExclusao(id: string) {
-    setConfirmandoExclusaoId(id)
-  }
-
   function confirmarExclusao() {
     const id = confirmandoExclusaoId
     if (!id) return
@@ -398,109 +526,22 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
       </div>
 
       <div className="space-y-3">
-        {atividades.map((at) => {
-          const total = alunosTurma.length
-          const concluidos = at.alunos_concluidos.length
-          const pct = total > 0 ? Math.round((concluidos / total) * 100) : 0
-          const encerrada = at.status === "encerrada"
-          const anexosAtividade = anexosBucket[at.id] ?? []
-
-          return (
-            <Card key={at.id} className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-display font-bold text-foreground">{at.titulo}</p>
-                    <span className="rounded-full bg-secondary/10 px-2 py-0.5 text-[11px] font-semibold text-secondary-foreground">
-                      {nomeTrilha(at.trilha_id)}
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                        encerrada ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary",
-                      )}
-                    >
-                      {encerrada ? "Encerrada" : "Aberta"}
-                    </span>
-                  </div>
-
-                  {at.descricao && (
-                    <p className="mt-1 text-sm text-muted-foreground">{at.descricao}</p>
-                  )}
-
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>+{at.xp} XP</span>
-                    <span className="capitalize">{at.dificuldade}</span>
-                    {at.prazo && (
-                      <span className="flex items-center gap-1">
-                        <CalendarClock className="size-3.5" /> {formatarDataCurta(at.prazo)}
-                      </span>
-                    )}
-                  </div>
-
-                  {anexosAtividade.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {anexosAtividade.map((ax) => (
-                        <div
-                          key={ax.nome}
-                          className="flex items-center gap-1 rounded-full border border-border bg-muted/50 pl-2 pr-1 py-1 text-xs font-medium text-foreground"
-                        >
-                          <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                          <span className="max-w-[120px] truncate">{ax.nome}</span>
-                          <button
-                            onClick={() => setPreviewArquivo(ax)}
-                            aria-label={`Visualizar ${ax.nome}`}
-                            className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
-                            title="Visualizar PDF"
-                          >
-                            <Eye className="size-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    onClick={() => abrirEdicao(at)}
-                    aria-label="Editar atividade"
-                    className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
-                  >
-                    <Pencil className="size-4" />
-                  </button>
-                  <button
-                    onClick={() => {
-                      encerrarAtividade(at.id)
-                      toast.success(encerrada ? "Atividade reaberta" : "Atividade encerrada")
-                    }}
-                    aria-label={encerrada ? "Reabrir atividade" : "Encerrar atividade"}
-                    title={encerrada ? "Reabrir atividade" : "Encerrar atividade"}
-                    className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
-                  >
-                    {encerrada ? <RotateCcw className="size-4" /> : <XCircle className="size-4" />}
-                  </button>
-                  <button
-                    onClick={() => pedirExclusao(at.id)}
-                    aria-label="Remover atividade"
-                    className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center gap-2">
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {concluidos}/{total}
-                </span>
-              </div>
-            </Card>
-          )
-        })}
+        {atividades.map((at) => (
+          <AtividadeCard
+            key={at.id}
+            atividade={at}
+            totalAlunos={alunosTurma.length}
+            nomeTrilha={nomeTrilha(at.trilha_id)}
+            anexos={anexosBucket[at.id] ?? []}
+            onEditar={() => abrirEdicao(at)}
+            onAlternarStatus={() => {
+              encerrarAtividade(at.id)
+              toast.success(at.status === "encerrada" ? "Atividade reaberta" : "Atividade encerrada")
+            }}
+            onExcluir={() => setConfirmandoExclusaoId(at.id)}
+            onVisualizarAnexo={setPreviewArquivo}
+          />
+        ))}
 
         {atividades.length === 0 && (
           <Card className="grid place-items-center gap-2 p-10 text-center">
@@ -514,13 +555,14 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
 
       {/* Dialog de criação/edição */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className={DIALOG_CONTENT_CLASS}>
           <DialogHeader>
             <DialogTitle className="font-display text-xl">
               {editando ? "Editar atividade" : "Lançar nova atividade"}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+
+          <div className="min-w-0 space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="titulo-atv">Título</Label>
               <Input
@@ -528,9 +570,10 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
                 placeholder="Ex: Revisão de frações"
-                className="rounded-2xl"
+                className="w-full rounded-2xl"
               />
             </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="desc-atv">Descrição</Label>
               <Textarea
@@ -538,9 +581,10 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 placeholder="Instruções para os alunos"
-                className="rounded-2xl"
+                className="w-full rounded-2xl"
               />
             </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="prazo-atv">Prazo (opcional)</Label>
@@ -549,7 +593,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                   type="date"
                   value={prazo}
                   onChange={(e) => setPrazo(e.target.value)}
-                  className="rounded-2xl"
+                  className="w-full rounded-2xl"
                 />
               </div>
               <div className="space-y-1.5">
@@ -561,15 +605,16 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                   step={5}
                   value={xp}
                   onChange={(e) => setXp(e.target.value)}
-                  className="rounded-2xl"
+                  className="w-full rounded-2xl"
                 />
               </div>
             </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Matéria (trilha)</Label>
                 <Select value={trilhaId} onValueChange={setTrilhaId}>
-                  <SelectTrigger className="rounded-2xl">
+                  <SelectTrigger className="w-full rounded-2xl">
                     <SelectValue placeholder="Selecione a trilha" />
                   </SelectTrigger>
                   <SelectContent>
@@ -584,7 +629,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
               <div className="space-y-1.5">
                 <Label>Dificuldade</Label>
                 <Select value={dificuldade} onValueChange={(v) => setDificuldade(v as Dificuldade)}>
-                  <SelectTrigger className="rounded-2xl">
+                  <SelectTrigger className="w-full rounded-2xl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -644,6 +689,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
               )}
             </div>
           </div>
+
           <DialogFooter>
             <Button onClick={salvar} className="w-full rounded-2xl py-6 font-bold">
               <Plus className="size-4" /> {editando ? "Salvar alterações" : "Lançar atividade"}
@@ -657,7 +703,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
         open={!!confirmandoExclusaoId}
         onOpenChange={(open) => !open && setConfirmandoExclusaoId(null)}
       >
-        <DialogContent className="rounded-3xl">
+        <DialogContent className={DIALOG_CONTENT_CLASS}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-display text-xl">
               <AlertTriangle className="size-5 text-destructive" />
@@ -686,11 +732,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* Componente de visualização de PDF */}
-      <PDFPreview
-        arquivo={previewArquivo}
-        onClose={() => setPreviewArquivo(null)}
-      />
+      <PDFPreview arquivo={previewArquivo} onClose={() => setPreviewArquivo(null)} />
     </div>
   )
 }

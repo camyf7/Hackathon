@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { useStore } from "@/lib/store"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -20,14 +21,16 @@ import type { Aluno } from "@/lib/types"
 
 const RA_STORAGE_KEY = "trilha-plus-ra-v1"
 
+const ease = [0.16, 1, 0.3, 1] as const
+
 // paleta de cores para o avatar de iniciais — sem emoji, gerada por hash do id
 const CORES_AVATAR = [
-  "bg-brand-green/15 text-green-700",
-  "bg-brand-turquoise/15 text-cyan-700",
-  "bg-brand-purple/15 text-purple-700",
-  "bg-brand-orange/15 text-orange-700",
-  "bg-brand-pink/15 text-pink-700",
-  "bg-brand-gold/20 text-amber-700",
+  "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  "bg-teal-500/10 text-teal-600 dark:text-teal-400",
 ]
 
 function iniciais(nome: string) {
@@ -50,6 +53,17 @@ function carregarRas(): Record<string, string> {
   } catch {
     return {}
   }
+}
+
+const containerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.05 } },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease } },
+  exit: { opacity: 0, y: -6, transition: { duration: 0.2, ease } },
 }
 
 export function AlunosTab({ turmaId }: { turmaId: string }) {
@@ -119,74 +133,87 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-muted-foreground">
-          {alunos.length} aluno(s). Só a professora cadastra — sem autocadastro.
+    <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-4">
+      <motion.div variants={itemVariants} className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-muted-foreground">
+          {alunos.length} aluno(s) · cadastro exclusivo da professora
         </p>
-        <Button onClick={abrirNovo} className="rounded-2xl font-extrabold">
+        <Button onClick={abrirNovo} className="shrink-0 rounded-2xl font-bold">
           <UserPlus className="size-4" /> Cadastrar aluno
         </Button>
-      </div>
+      </motion.div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        {alunos.map((a) => {
-          const squad = db.squads.find((s) => s.id === a.squad_id)
-          return (
-            <Card key={a.id} className="flex items-center gap-3 p-3">
-              <span
-                className={cn(
-                  "grid size-12 shrink-0 place-items-center rounded-2xl text-base font-extrabold",
-                  corPara(a.id),
-                )}
-              >
-                {iniciais(a.nome)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-display font-extrabold">{a.nome}</p>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-bold text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Trophy className="size-3.5" /> Nv {a.nivel} · {a.xp_total} XP
-                  </span>
-                  {squad && (
-                    <span className="flex items-center gap-1">
-                      <Users className="size-3.5" /> {squad.nome}
+      <motion.div variants={containerVariants} className="grid gap-2.5 sm:grid-cols-2">
+        <AnimatePresence mode="popLayout">
+          {alunos.map((a) => {
+            const squad = db.squads.find((s) => s.id === a.squad_id)
+            return (
+              <motion.div key={a.id} variants={itemVariants} exit="exit" layout>
+                <Card className="p-3 transition-shadow hover:shadow-md">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "grid size-12 shrink-0 place-items-center rounded-2xl text-base font-bold",
+                        corPara(a.id),
+                      )}
+                    >
+                      {iniciais(a.nome)}
                     </span>
-                  )}
-                  {ras[a.id] && (
-                    <span className="flex items-center gap-1">
-                      <IdCard className="size-3.5" /> RA {ras[a.id]}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => abrirEdicao(a)}
-                aria-label={`Editar ${a.nome}`}
-                className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-brand-turquoise/15 hover:text-cyan-700"
-              >
-                <Pencil className="size-4" />
-              </button>
-              <button
-                onClick={() => {
-                  removerAluno(a.id)
-                  toast.success("Aluno removido")
-                }}
-                aria-label={`Remover ${a.nome}`}
-                className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-destructive/15 hover:text-destructive"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </Card>
-          )
-        })}
+                    <div className="min-w-0 flex-1 text-left">
+                      <p className="truncate font-display font-bold text-foreground">{a.nome}</p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-semibold text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Trophy className="size-3.5" /> Nv {a.nivel} · {a.xp_total} XP
+                        </span>
+                        {squad && (
+                          <span className="flex items-center gap-1">
+                            <Users className="size-3.5" /> {squad.nome}
+                          </span>
+                        )}
+                        {ras[a.id] && (
+                          <span className="flex items-center gap-1">
+                            <IdCard className="size-3.5" /> RA {ras[a.id]}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => abrirEdicao(a)}
+                        aria-label={`Editar ${a.nome}`}
+                        className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-sky-500/10 hover:text-sky-600"
+                      >
+                        <Pencil className="size-4" />
+                      </motion.button>
+                      <motion.button
+                        whileTap={{ scale: 0.92 }}
+                        onClick={() => {
+                          removerAluno(a.id)
+                          toast.success("Aluno removido")
+                        }}
+                        aria-label={`Remover ${a.nome}`}
+                        className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Trash2 className="size-4" />
+                      </motion.button>
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
+
         {alunos.length === 0 && (
-          <Card className="col-span-full grid place-items-center gap-2 p-8 text-center">
-            <UserPlus className="size-8 text-muted-foreground" />
-            <p className="font-semibold text-muted-foreground">Nenhum aluno ainda. Cadastre o primeiro!</p>
-          </Card>
+          <motion.div variants={itemVariants} className="col-span-full">
+            <Card className="grid place-items-center gap-2 p-8 text-center">
+              <UserPlus className="size-8 text-muted-foreground" />
+              <p className="font-medium text-muted-foreground">Nenhum aluno ainda. Cadastre o primeiro.</p>
+            </Card>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="rounded-3xl">
@@ -219,29 +246,39 @@ export function AlunosTab({ turmaId }: { turmaId: string }) {
                 Campo de teste por enquanto — será usado depois no login do aluno.
               </p>
             </div>
-            {nome.trim() && (
-              <div className="flex items-center gap-3 rounded-2xl bg-muted/60 p-3">
-                <span
-                  className={cn(
-                    "grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-extrabold",
-                    editando ? corPara(editando.id) : CORES_AVATAR[0],
-                  )}
+            <AnimatePresence>
+              {nome.trim() && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2, ease }}
+                  className="overflow-hidden"
                 >
-                  {iniciais(nome)}
-                </span>
-                <p className="text-xs font-semibold text-muted-foreground">
-                  Avatar gerado automaticamente a partir do nome.
-                </p>
-              </div>
-            )}
+                  <div className="flex items-center gap-3 rounded-2xl bg-muted/60 p-3">
+                    <span
+                      className={cn(
+                        "grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-bold",
+                        editando ? corPara(editando.id) : CORES_AVATAR[0],
+                      )}
+                    >
+                      {iniciais(nome)}
+                    </span>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Avatar gerado automaticamente a partir do nome.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           <DialogFooter>
-            <Button onClick={salvar} className="w-full rounded-2xl py-6 font-extrabold">
+            <Button onClick={salvar} className="w-full rounded-2xl py-6 font-bold">
               <Plus className="size-4" /> {editando ? "Salvar alterações" : "Cadastrar aluno"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </motion.div>
   )
 }

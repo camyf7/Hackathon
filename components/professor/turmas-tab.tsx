@@ -158,12 +158,12 @@ export function TurmasTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="font-display text-xl font-bold text-foreground">Minhas turmas</h2>
           <p className="text-sm text-muted-foreground">{turmas.length} turma(s) cadastrada(s)</p>
         </div>
-        <Button onClick={abrirNova} className="rounded-2xl font-bold">
+        <Button onClick={abrirNova} className="w-full shrink-0 rounded-2xl font-bold sm:w-auto">
           <Plus className="size-4" /> Nova turma
         </Button>
       </div>
