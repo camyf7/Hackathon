@@ -28,6 +28,8 @@ export interface Aluno {
   tem_dispositivo_proprio: boolean // uso interno de simulação, nunca exibido
   banners_desbloqueados: string[] // ids de banners de perfil
   banner_equipado: string | null
+  cores_nome_desbloqueadas: string[] // ids de cores de nome já desbloqueadas
+  cor_nome_equipada: string | null
   badges: string[] // ids de badges
   ultima_presenca: string | null // data ISO (yyyy-mm-dd)
   // Trilha de Recompensas: ícones de perfil desbloqueados por nível (mesmo xp_total do aluno)
@@ -79,7 +81,7 @@ export interface ProgressoTrilha {
 
 export interface Presenca {
   aluno_id: string
-  data: string // yyyy-mm-dd
+  data: string // yyyy-mm-dd    
   presente: boolean
   justificada: boolean
 }
@@ -92,6 +94,15 @@ export interface Banner {
   custo_xp: number // XP total necessário para desbloquear
   gradiente: string // classe css de background
 }
+// Recompensa: cor do nome exibido no banner de perfil
+export interface CorNome {
+  id: string
+  nome: string
+  raridade: Raridade
+  custo_xp: number
+  classe: string // classe tailwind de cor de texto (ex: "text-white")
+}
+
 
 export type StatusResgate = "pendente" | "aprovada" | "negada"
 
@@ -131,6 +142,7 @@ export interface DB {
   progresso: ProgressoTrilha[]
   presencas: Presenca[]
   banners: Banner[]
+  cores_nome: CorNome[]
   recompensas_reais: RecompensaReal[]
   resgates: Resgate[]
   missoes: Missao[]

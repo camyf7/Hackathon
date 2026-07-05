@@ -35,6 +35,7 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
   const router = useRouter()
   const { ownedIcons, selectedIcon, escolherIcone } = useRewards(aluno.id)
   const banner = db.banners.find((b) => b.id === aluno.banner_equipado)
+  const corNome = db.cores_nome.find((c) => c.id === aluno.cor_nome_equipada)  // ← nova linha
   const turma = db.turmas.find((t) => t.id === aluno.turma_id)
 
   const minHoje = aluno.tempo_tela_minutos_hoje
@@ -63,7 +64,7 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
 
   return (
     <div className="space-y-4 pb-4">
-      <BannerPerfil banner={banner} avatar={aluno.avatar} nome={aluno.nome}>
+     <BannerPerfil banner={banner} avatar={aluno.avatar} nome={aluno.nome} corNomeClasse={corNome?.classe}>
         <div className="mt-3 flex items-center gap-2">
           <span className="rounded-full bg-white/85 px-3 py-1 font-display text-sm font-extrabold text-foreground">
             Nível {aluno.nivel}

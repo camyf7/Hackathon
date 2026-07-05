@@ -27,17 +27,23 @@ const STORAGE_KEY = "trilha-plus-db-v5"
 const SESSION_KEY = "trilha-plus-session-v4"
 
 // ---------- helpers ----------
-function recalcAluno(a: Aluno, banners: DB["banners"]): Aluno {
+function recalcAluno(a: Aluno, banners: DB["banners"], coresNome: DB["cores_nome"]): Aluno {
   const nivel = nivelDoXp(a.xp_total)
   const desbloqueados = new Set(a.banners_desbloqueados)
   banners.forEach((b) => {
     if (a.xp_total >= b.custo_xp) desbloqueados.add(b.id)
+  })
+  const coresDesbloqueadas = new Set(a.cores_nome_desbloqueadas ?? [])
+  coresNome.forEach((c) => {
+    if (a.xp_total >= c.custo_xp) coresDesbloqueadas.add(c.id)
   })
   return {
     ...a,
     nivel,
     banners_desbloqueados: Array.from(desbloqueados),
     banner_equipado: a.banner_equipado ?? "b_ceu",
+    cores_nome_desbloqueadas: Array.from(coresDesbloqueadas),
+    cor_nome_equipada: a.cor_nome_equipada ?? "cn_branco",
   }
 }
 
@@ -95,6 +101,7 @@ interface StoreCtx {
   responderExercicio: (alunoId: string, exercicioId: string) => { acertou: boolean; xp: number } | null
   fazerCheckin: (alunoId: string) => number | null
   equiparBanner: (alunoId: string, bannerId: string) => void
+  equiparCorNome: (alunoId: string, corId: string) => void 
   solicitarResgate: (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, turmaId: string) => void
   // Trilha de Recompensas (ícones de perfil por nível/xp)
   resgatarRecompensaXp: (alunoId: string, recompensaId: number, icone: string) => void
@@ -165,12 +172,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         parsed.recompensas_reais ??= []
 
         // Compatibilidade - Trilha de Recompensas (alunos salvos antes desses campos existirem)
-        parsed.alunos = parsed.alunos.map((a) => ({
+        parsed.cores_nome ??= []
+        if (parsed.cores_nome.length === 0) {
+          parsed.cores_nome = [
+            { id: "cn_branco", nome: "Branco Clássico", raridade: "comum", custo_xp: 0, classe: "text-white" },
+            { id: "cn_amarelo", nome: "Amarelo Sol", raridade: "comum", custo_xp: 150, classe: "text-yellow-300" },
+            { id: "cn_ciano", nome: "Ciano Elétrico", raridade: "raro", custo_xp: 400, classe: "text-cyan-300" },
+            { id: "cn_verde", nome: "Verde Neon", raridade: "raro", custo_xp: 600, classe: "text-lime-300" },
+            { id: "cn_rosa", nome: "Rosa Choque", raridade: "epico", custo_xp: 1000, classe: "text-pink-400" },
+            { id: "cn_dourado", nome: "Dourado Real", raridade: "epico", custo_xp: 1400, classe: "text-amber-300" },
+            { id: "cn_arco-iris", nome: "Arco-íris", raridade: "lendario", custo_xp: 2000, classe: "text-fuchsia-300" },
+          ]
+        }
+
+         parsed.alunos = parsed.alunos.map((a) => ({
           ...a,
           recompensas_resgatadas: a.recompensas_resgatadas ?? [],
           icones_desbloqueados: a.icones_desbloqueados ?? ["default"],
           icone_selecionado: a.icone_selecionado ?? "default",
+          cores_nome_desbloqueadas: a.cores_nome_desbloqueadas ?? ["cn_branco"],
+          cor_nome_equipada: a.cor_nome_equipada ?? "cn_branco",
         }))
+
+        parsed.alunos = parsed.alunos.map((a) => recalcAluno(a, parsed.banners, parsed.cores_nome))
 
         base = parsed
       } else {
@@ -193,7 +217,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const pid =
         session?.professorId &&
-        base.professores.some((p) => p.id === session.professorId)
+          base.professores.some((p) => p.id === session.professorId)
           ? session.professorId
           : null
 
@@ -343,7 +367,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       const alunos = prev.alunos.map((a) => {
         if (a.id !== aid) return a
-        return recalcAluno({ ...a, xp_total: a.xp_total + xp }, prev.banners)
+        return recalcAluno({ ...a, xp_total: a.xp_total + xp }, prev.banners, prev.cores_nome)  
       })
 
       const progresso = prev.progresso.map((p) => {
@@ -384,6 +408,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 ultima_presenca: hoje,
               },
               prev.banners,
+              prev.cores_nome,
             )
           : a,
       )
@@ -403,6 +428,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       alunos: prev.alunos.map((a) =>
         a.id === aid && a.banners_desbloqueados.includes(bannerId)
           ? { ...a, banner_equipado: bannerId }
+          : a,
+      ),
+    }))
+  }, [])
+
+  const equiparCorNome = useCallback((aid: string, corId: string) => {
+    setDb((prev) => ({
+      ...prev,
+      alunos: prev.alunos.map((a) =>
+        a.id === aid && a.cores_nome_desbloqueadas.includes(corId)
+          ? { ...a, cor_nome_equipada: corId }
           : a,
       ),
     }))
@@ -481,6 +517,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         tem_dispositivo_proprio: true,
         banners_desbloqueados: ["b_ceu"],
         banner_equipado: "b_ceu",
+        cores_nome_desbloqueadas: ["cn_branco"],
+        cor_nome_equipada: "cn_branco",
         badges: [],
         ultima_presenca: null,
         recompensas_resgatadas: [],
@@ -566,14 +604,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       atividades: prev.atividades.map((a) =>
         a.id === id
           ? {
-              ...a,
-              titulo: dados.titulo,
-              descricao: dados.descricao,
-              prazo: dados.prazo,
-              xp: dados.xp,
-              dificuldade: dados.dificuldade,
-              anexos: dados.anexos.map((ax, i) => ({ id: `ax-${Date.now()}-${i}`, nome: ax.nome, tipo: ax.tipo })),
-            }
+            ...a,
+            titulo: dados.titulo,
+            descricao: dados.descricao,
+            prazo: dados.prazo,
+            xp: dados.xp,
+            dificuldade: dados.dificuldade,
+            anexos: dados.anexos.map((ax, i) => ({ id: `ax-${Date.now()}-${i}`, nome: ax.nome, tipo: ax.tipo })),
+          }
           : a,
       ),
     }))
@@ -712,8 +750,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const existe = prev.presencas.some((p) => p.aluno_id === aid && p.data === data)
         const presencas = existe
           ? prev.presencas.map((p) =>
-              p.aluno_id === aid && p.data === data ? { ...p, presente, justificada } : p,
-            )
+            p.aluno_id === aid && p.data === data ? { ...p, presente, justificada } : p,
+          )
           : [...prev.presencas, { aluno_id: aid, data, presente, justificada }]
 
         const alunos = prev.alunos.map((a) => {
@@ -776,7 +814,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           a.id === resgate.solicitante_id
             ? recalcAluno(
                 { ...a, xp_total: Math.max(0, a.xp_total - recompensa.custo_xp) },
-                prev.banners
+                prev.banners,
+                prev.cores_nome
               )
             : a,
         )
@@ -817,7 +856,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ultima_presenca: veio ? hoje : a.ultima_presenca,
           xp_total: veio ? a.xp_total + 20 : a.xp_total,
         }
-      }).map((a) => recalcAluno(a, prev.banners))
+     }).map((a) => recalcAluno(a, prev.banners, prev.cores_nome))
       const next = { ...prev, presencas: novasPresencas, alunos }
       return { ...next, squads: recalcSquads(next) }
     })
@@ -827,7 +866,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setDb((prev) => {
       const alunos = prev.alunos
         .map((a) => ({ ...a, xp_total: a.xp_total + Math.round(20 + Math.random() * 80), tempo_tela_minutos_hoje: a.tempo_tela_minutos_hoje + Math.round(5 + Math.random() * 10) }))
-        .map((a) => recalcAluno(a, prev.banners))
+        .map((a) => recalcAluno(a, prev.banners, prev.cores_nome))
+
       const next = { ...prev, alunos }
       return { ...next, squads: recalcSquads(next) }
     })
@@ -864,6 +904,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       responderExercicio,
       fazerCheckin,
       equiparBanner,
+      equiparCorNome,
       solicitarResgate,
       resgatarRecompensaXp,
       selecionarIconePerfil,

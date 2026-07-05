@@ -11,7 +11,7 @@ import { Lock, Check, Clock, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 export function RecompensasView() {
-  const { db, alunoId, equiparBanner, solicitarResgate } = useStore()
+  const { db, alunoId, equiparBanner, equiparCorNome, solicitarResgate } = useStore()
   const aluno = db.alunos.find((a) => a.id === alunoId)
   const [aba, setAba] = useState<"jogo" | "real">("jogo")
   if (!aluno) return null
@@ -49,7 +49,7 @@ export function RecompensasView() {
               Banners de perfil desbloqueiam sozinhos ao atingir a meta de XP. Sem aprovação!
             </p>
           </Card>
-          <div className="grid grid-cols-2 gap-3">
+           <div className="grid grid-cols-2 gap-3">
             {bannersOrdenados.map((b) => {
               const desbloqueado = aluno.banners_desbloqueados.includes(b.id)
               const equipado = aluno.banner_equipado === b.id
@@ -89,6 +89,71 @@ export function RecompensasView() {
                         onClick={() => {
                           equiparBanner(aluno.id, b.id)
                           toast.success("Banner equipado!", { description: b.nome })
+                        }}
+                      >
+                        {equipado ? "Equipado" : "Equipar"}
+                      </Button>
+                    ) : (
+                      <p className="text-center text-[11px] font-bold text-muted-foreground">
+                        Faltam {falta > 0 ? falta : 0} XP
+                      </p>
+                    )}
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* ---- NOVA SEÇÃO: Cor do nome ---- */}
+          <Card className="border-2 border-dashed border-brand-purple/40 bg-brand-purple/5 p-3">
+            <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Sparkles className="size-4 text-brand-purple" />
+              Cores de nome desbloqueiam sozinhas ao atingir a meta de XP. Sem aprovação!
+            </p>
+          </Card>
+          <div className="grid grid-cols-2 gap-3">
+            {[...db.cores_nome].sort((a, b) => a.custo_xp - b.custo_xp).map((c) => {
+              const desbloqueado = aluno.cores_nome_desbloqueadas.includes(c.id)
+              const equipado = aluno.cor_nome_equipada === c.id
+              const info = RARIDADE_INFO[c.raridade]
+              const falta = c.custo_xp - aluno.xp_total
+              return (
+                <Card
+                  key={c.id}
+                  className={cn(
+                    "overflow-hidden border-2 p-0",
+                    equipado ? "border-primary" : info.borda,
+                  )}
+                >
+                  <div className="relative flex h-20 items-center justify-center bg-slate-900">
+                    {!desbloqueado && (
+                      <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-[2px]">
+                        <Lock className="size-6 text-white" />
+                      </div>
+                    )}
+                    {equipado && (
+                      <Badge className="absolute right-1 top-1 bg-primary text-primary-foreground">
+                        Em uso
+                      </Badge>
+                    )}
+                    <span className={cn("font-display text-lg font-extrabold", c.classe)}>
+                      Ex: Nome
+                    </span>
+                  </div>
+                  <div className="space-y-2 p-2">
+                    <p className="font-display text-sm font-extrabold leading-tight">{c.nome}</p>
+                    <Badge variant="secondary" className={cn("text-[10px]", info.classe)}>
+                      {info.nome}
+                    </Badge>
+                    {desbloqueado ? (
+                      <Button
+                        size="sm"
+                        variant={equipado ? "secondary" : "default"}
+                        className="w-full font-bold"
+                        disabled={equipado}
+                        onClick={() => {
+                          equiparCorNome(aluno.id, c.id)
+                          toast.success("Cor de nome equipada!", { description: c.nome })
                         }}
                       >
                         {equipado ? "Equipado" : "Equipar"}

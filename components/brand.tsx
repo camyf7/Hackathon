@@ -101,12 +101,14 @@ export function BannerPerfil({
   banner,
   avatar,
   nome,
+  corNomeClasse,
   className,
   children,
 }: {
   banner: Banner | undefined
   avatar: string
   nome?: string
+  corNomeClasse?: string
   className?: string
   children?: React.ReactNode
 }) {
@@ -123,13 +125,17 @@ export function BannerPerfil({
           {avatar}
         </span>
         {nome && (
-          <span className="font-display text-xl font-extrabold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
+          <span
+            className={cn(
+              "font-display text-xl font-extrabold drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]",
+              corNomeClasse ?? "text-white",
+            )}
+          >
             {nome}
           </span>
         )}
       </div>
       {children}
     </div>
-    
   )
 }

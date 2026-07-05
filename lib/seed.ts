@@ -2,6 +2,7 @@ import type {
   Aluno,
   Atividade,
   Banner,
+  CorNome,
   DB,
   Escola,
   Exercicio,
@@ -128,6 +129,16 @@ const banners: Banner[] = [
   { id: "b_dragao", nome: "Sopro do Dragão", raridade: "lendario", custo_xp: 2500, gradiente: "bg-gradient-to-r from-red-500 via-orange-500 to-amber-400" },
 ]
 
+const coresNome: CorNome[] = [
+  { id: "cn_branco", nome: "Branco Clássico", raridade: "comum", custo_xp: 0, classe: "text-white" },
+  { id: "cn_amarelo", nome: "Amarelo Sol", raridade: "comum", custo_xp: 150, classe: "text-yellow-300" },
+  { id: "cn_ciano", nome: "Ciano Elétrico", raridade: "raro", custo_xp: 400, classe: "text-cyan-300" },
+  { id: "cn_verde", nome: "Verde Neon", raridade: "raro", custo_xp: 600, classe: "text-lime-300" },
+  { id: "cn_rosa", nome: "Rosa Choque", raridade: "epico", custo_xp: 1000, classe: "text-pink-400" },
+  { id: "cn_dourado", nome: "Dourado Real", raridade: "epico", custo_xp: 1400, classe: "text-amber-300" },
+  { id: "cn_arco-iris", nome: "Arco-íris", raridade: "lendario", custo_xp: 2000, classe: "text-fuchsia-300" },
+]
+
 // ---------- Recompensas do mundo real (modelo por turma) ----------
 // Cada turma recebe um conjunto inicial de recompensas ativas.
 const RECOMPENSAS_MODELO: Omit<Recompensa, "id" | "turma_id" | "criada_em">[] = [
@@ -221,6 +232,10 @@ const NOMES = [
 
 function bannersIniciais(xp: number): string[] {
   return banners.filter((b) => xp >= b.custo_xp).map((b) => b.id)
+}
+
+function coresNomeIniciais(xp: number): string[] {
+  return coresNome.filter((c) => xp >= c.custo_xp).map((c) => c.id)
 }
 
 function badgesIniciais(xp: number, streak: number): string[] {
@@ -332,6 +347,8 @@ export function criarSeed(): DB {
           tem_dispositivo_proprio: Math.random() > 0.4,
           banners_desbloqueados: bannersIniciais(xp),
           banner_equipado: bannersIniciais(xp)[Math.min(1, bannersIniciais(xp).length - 1)] ?? "b_ceu",
+          cores_nome_desbloqueadas: coresNomeIniciais(xp),
+          cor_nome_equipada: coresNomeIniciais(xp)[Math.min(1, coresNomeIniciais(xp).length - 1)] ?? "cn_branco",
           badges: badgesIniciais(xp, streak),
           ultima_presenca: streak > 0 ? hoje : adicionarDias(hoje, -3),
           // Trilha de Recompensas: todo aluno começa só com o ícone padrão
@@ -424,6 +441,7 @@ export function criarSeed(): DB {
     presencas,
     atividades,
     banners,
+    cores_nome: coresNome, // ← adicionar
     recompensas,
     recompensas_reais: RECOMPENSAS_REAIS,
     resgates: [],
