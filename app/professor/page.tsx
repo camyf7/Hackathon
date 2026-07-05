@@ -11,8 +11,6 @@ import { AlunosTab } from "@/components/professor/alunos-tab"
 import { AtividadesTab } from "@/components/professor/atividades-tab"
 import { RecompensasTab } from "@/components/professor/recompensas-tab"
 import { SquadsTab } from "@/components/professor/squads-tab"
-import { MissoesTab } from "@/components/professor/missoes-tab"
-import { AprovacoesTab } from "@/components/professor/aprovacoes-tab"
 import { AlertasTab } from "@/components/professor/alertas-tab"
 import { cn } from "@/lib/utils"
 import {
@@ -22,7 +20,6 @@ import {
   LayoutDashboard,
   LogOut,
   School,
-  Target,
   Trophy,
   UsersRound,
 } from "lucide-react"
@@ -34,21 +31,31 @@ type Tab =
   | "atividades"
   | "recompensas"
   | "squads"
-  | "missoes"
-  | "aprovacoes"
   | "alertas"
 
-const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
+type TabDef = { id: Tab; label: string; icon: typeof LayoutDashboard }
+
+// Lista plana — a bottom nav mostra tudo de uma vez, sem agrupamento,
+// então cada item precisa de um label curto o suficiente para caber.
+const TABS: TabDef[] = [
   { id: "dashboard", label: "Painel", icon: LayoutDashboard },
   { id: "turmas", label: "Turmas", icon: School },
   { id: "alunos", label: "Alunos", icon: UsersRound },
-  { id: "atividades", label: "Atividades", icon: ClipboardList },
+  { id: "atividades", label: "Ativid.", icon: ClipboardList },
   { id: "recompensas", label: "Prêmios", icon: Gift },
   { id: "squads", label: "Squads", icon: Trophy },
-  { id: "missoes", label: "Missões", icon: Target },
-  { id: "aprovacoes", label: "Resgates", icon: Gift },
   { id: "alertas", label: "Alertas", icon: AlertTriangle },
 ]
+
+// Extrai iniciais do nome do professor (ex: "Prof. Marina Andrade" -> "PA")
+// pra usar como avatar quando não há foto cadastrada.
+function iniciais(nome?: string) {
+  if (!nome) return "P"
+  const partes = nome.trim().split(/\s+/)
+  const primeira = partes[0]?.[0] ?? ""
+  const ultima = partes.length > 1 ? partes[partes.length - 1][0] : ""
+  return (primeira + ultima).toUpperCase()
+}
 
 export default function ProfessorPage() {
   const router = useRouter()
@@ -91,89 +98,112 @@ export default function ProfessorPage() {
     router.push("/")
   }
 
+  function irPara(t: Tab) {
+    setTab(t)
+  }
+
   const precisaTurma = tab !== "turmas" && tab !== "dashboard"
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      {/* Topo com identidade e turma */}
+      {/* Topo com identidade, escola, turma e sair */}
       <header
         className={cn(
           "sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur transition-shadow",
           isScrolled && "shadow-sm",
         )}
       >
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 py-2.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <Logo className="scale-90" />
-            {escola && (
-              <div className="hidden min-w-0 flex-col truncate sm:flex">
-                <span className="text-[10px] leading-none text-muted-foreground">
-                  Escola
-                </span>
-                <span className="max-w-[160px] truncate text-sm font-semibold">
-                  {escola.nome}
-                </span>
-              </div>
-            )}
+        <div className="mx-auto max-w-2xl px-4 py-3">
+          {/* Linha principal: marca da escola + seletor de turma */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Logo className="scale-90" />
+              {escola && (
+                <div className="hidden min-w-0 flex-col truncate sm:flex">
+                  <span className="text-[10px] font-medium leading-none text-muted-foreground">
+                    Escola
+                  </span>
+                  <span className="mt-0.5 max-w-[180px] truncate text-sm font-bold leading-none text-foreground">
+                    {escola.nome}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <TurmaSelector />
           </div>
 
-          <div className="flex items-center gap-2">
-            <TurmaSelector />
+          {/* Linha de identidade: avatar com iniciais + nome + sair,
+              como um cartão compacto em vez de texto solto */}
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-muted/50 py-1.5 pl-1.5 pr-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary/15 text-[11px] font-extrabold text-primary">
+                {iniciais(professor?.nome)}
+              </span>
+              <span className="min-w-0 truncate text-xs font-semibold text-foreground">
+                {professor?.nome ?? "Professor"}
+              </span>
+            </div>
             <button
               onClick={sair}
-              aria-label="Sair"
-              className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+              className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-3.5" />
+              Sair
             </button>
           </div>
         </div>
       </header>
 
-      {/* Conteúdo */}
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-5">
+      {/* Conteúdo — padding inferior reserva espaço pra bottom nav não cobrir nada */}
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-5 pb-24">
         {tab === "dashboard" && <DashboardTab turmaId={turmaValida ? turmaId : ""} />}
         {tab === "turmas" && <TurmasTab />}
         {precisaTurma && (semTurma || !turmaValida) ? (
-          <EmptyTurma onIr={() => setTab("turmas")} sem={semTurma} />
+          <EmptyTurma onIr={() => irPara("turmas")} sem={semTurma} />
         ) : (
           <>
             {tab === "alunos" && <AlunosTab turmaId={turmaId} />}
             {tab === "atividades" && <AtividadesTab turmaId={turmaId} />}
             {tab === "recompensas" && <RecompensasTab turmaId={turmaId} />}
             {tab === "squads" && <SquadsTab turmaId={turmaId} />}
-            {tab === "missoes" && <MissoesTab turmaId={turmaId} />}
-            {tab === "aprovacoes" && <AprovacoesTab turmaId={turmaId} />}
             {tab === "alertas" && <AlertasTab turmaId={turmaId} />}
           </>
         )}
       </main>
 
-      {/* Navegação inferior — mesmo padrão da página do aluno */}
-      <nav className="sticky bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex max-w-2xl items-stretch gap-1 overflow-x-auto px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {TABS.map((t) => {
-            const Icon = t.icon
-            const ativo = tab === t.id
+      {/* Bottom nav — 7 colunas de largura igual, ícone + label proporcionais */}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="mx-auto grid max-w-2xl grid-cols-7">
+          {TABS.map((item) => {
+            const Icon = item.icon
+            const ativo = tab === item.id
             return (
               <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
+                key={item.id}
+                onClick={() => irPara(item.id)}
                 aria-current={ativo ? "page" : undefined}
-                className={cn(
-                  "flex min-w-[64px] flex-1 shrink-0 flex-col items-center gap-0.5 rounded-2xl py-1.5 text-xs font-bold transition",
-                  ativo ? "text-primary" : "text-muted-foreground hover:text-foreground",
-                )}
+                className="flex flex-col items-center justify-center gap-1 py-2 transition-colors"
               >
                 <span
                   className={cn(
-                    "grid size-9 place-items-center rounded-2xl transition",
-                    ativo && "bg-primary/15",
+                    "grid aspect-square w-7 place-items-center rounded-xl transition-colors",
+                    ativo ? "bg-primary/10 text-primary" : "text-muted-foreground",
                   )}
                 >
-                  <Icon className={cn("size-5", ativo && "scale-110")} />
+                  <Icon className="size-4" />
                 </span>
-                {t.label}
+                <span
+                  className={cn(
+                    "max-w-full truncate text-[10px] font-bold leading-none",
+                    ativo ? "text-primary" : "text-muted-foreground",
+                  )}
+                >
+                  {item.label}
+                </span>
               </button>
             )
           })}

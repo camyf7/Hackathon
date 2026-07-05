@@ -18,7 +18,7 @@ import { SchoolTurmaSelector } from "@/components/school-turma-selector"
 import { DemoBar } from "@/components/demo-bar"
 
 import { cn } from "@/lib/utils"
-import { ArrowRight, GraduationCap, QrCode, ScanLine, Sparkles } from "lucide-react"
+import { ArrowRight, FlaskConical, GraduationCap, QrCode, ScanLine, Sparkles, X } from "lucide-react"
 
 /* ---------------------------------------------------------------------- */
 /* Motion tokens                                                          */
@@ -50,6 +50,7 @@ export default function HomePage() {
   const { db, ready, turmaId, setAlunoId } = useStore()
   const [tela, setTela] = useState<"perfil" | "carteirinha">("perfil")
   const [modalProfessorAberto, setModalProfessorAberto] = useState(false)
+  const [demoAberto, setDemoAberto] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const mouseX = useMotionValue(0)
@@ -284,8 +285,63 @@ export default function HomePage() {
         </AnimatePresence>
       </main>
 
-      <DemoBar />
+      {/* ---------------------------------------------------------------- */}
+      {/* Simulador de demo — escondido atrás de um botão flutuante para   */}
+      {/* não poluir a tela; abre um painel pequeno só quando necessário.  */}
+      {/* ---------------------------------------------------------------- */}
+      <DemoSimuladorFlutuante open={demoAberto} onToggle={() => setDemoAberto((v) => !v)} />
     </div>
+  )
+}
+
+/* ---------------------------------------------------------------------- */
+/* Simulador de demo flutuante                                            */
+/* ---------------------------------------------------------------------- */
+
+function DemoSimuladorFlutuante({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  return (
+    <>
+      <motion.button
+        onClick={onToggle}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.94 }}
+        aria-label={open ? "Fechar simulador de demo" : "Abrir simulador de demo"}
+        className={cn(
+          "fixed bottom-4 right-4 z-50 grid size-11 place-items-center rounded-full border backdrop-blur-xl transition-colors",
+          open
+            ? "border-emerald-400/30 bg-emerald-400/15 text-emerald-300"
+            : "border-white/[0.08] bg-white/[0.04] text-zinc-500 opacity-70 hover:opacity-100 hover:text-white",
+        )}
+      >
+        {open ? <X className="size-4" /> : <FlaskConical className="size-4" />}
+      </motion.button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: pageEase }}
+            className="fixed bottom-[4.25rem] right-4 z-50 w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-3xl border border-white/[0.08] bg-[#111114]/95 p-3 shadow-2xl backdrop-blur-xl"
+          >
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-500">
+                Simulador de demo
+              </span>
+              <button
+                onClick={onToggle}
+                aria-label="Fechar simulador de demo"
+                className="grid size-6 place-items-center rounded-full text-zinc-500 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+            <DemoBar />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }
 
