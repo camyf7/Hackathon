@@ -108,7 +108,7 @@ export function JogoCompletar({ alunoId, bloqueado }: { alunoId: string; bloquea
       ) : venceu ? (
         <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
           <p className="font-display text-lg font-extrabold text-purple-500">
-            Você completou todas as frases! 🎉
+            Você completou todas as frases! 
           </p>
           <button
             onClick={reiniciar}

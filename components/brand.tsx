@@ -99,10 +99,15 @@ export function XpBar({
   )
 }
 
+/** Um "avatar" pode ser um emoji (ex: "🦊") ou um caminho de imagem (ex: "/avatar1.png"). */
+function isImagePath(avatar: string): boolean {
+  return avatar.startsWith("/") || avatar.startsWith("http")
+}
+
 /**
- * Foto de perfil exibida no banner. Prioriza o ícone da Trilha de Recompensas
- * (icone_selecionado); se o aluno ainda não tiver nenhum ícone resgatado
- * ("default"/ausente), cai de volta pro emoji de avatar clássico.
+ * Foto de perfil exibida no banner. Prioridade:
+ * 1. Ícone da Trilha de Recompensas (icone_selecionado), se já houver algum resgatado.
+ * 2. Avatar do aluno — pode ser um emoji clássico OU uma imagem (/avatar1.png, /icone13.jpg...).
  */
 export function BannerPerfil({
   banner,
@@ -130,11 +135,14 @@ export function BannerPerfil({
       )}
     >
       <div className="flex items-center gap-3">
-        <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/85 text-4xl shadow-md">
+        <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/85 shadow-md">
           {temIconeRecompensa ? (
             <RewardIcon icone={icone!} className="size-16 rounded-2xl" />
+          ) : isImagePath(avatar) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatar} alt="" className="size-16 rounded-2xl object-cover" />
           ) : (
-            avatar
+            <span className="text-4xl">{avatar}</span>
           )}
         </span>
         {nome && (

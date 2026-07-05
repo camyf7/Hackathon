@@ -112,7 +112,7 @@ export function JogoVerdadeiroFalso({ alunoId, bloqueado }: { alunoId: string; b
       ) : status === "venceu" ? (
         <div className="flex flex-col items-center justify-center gap-3 py-6 text-center">
           <p className="font-display text-lg font-extrabold text-orange-500">
-            Você acertou o desafio de História! 🎉
+            Você acertou o desafio de História! 
           </p>
           <button
             onClick={reiniciar}

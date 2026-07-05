@@ -41,8 +41,21 @@ function formatarContagem(ms: number): string {
 // Avatares disponíveis para o aluno escolher ao editar o perfil (usados apenas
 // como fallback enquanto nenhum ícone da Trilha de Recompensas é escolhido)
 const AVATARES_DISPONIVEIS = [
-  "🦊", "🐼", "🦁", "🐨", "🐸", "🦉", "🐙", "🦄",
-  "🐵", "🐯", "🐧", "🦖", "🐢", "🐝", "🦋",
+  "/avatar1.png",
+  "/avatar2.png",
+  "/avatar3.jpg",
+  "/avatar4.jpg",
+  "/avatar5.jpg",
+  "/avatar6.jpg",
+  "/icone13.jpg",
+  "/icone14.jpg",
+  "/icone15.jpg",
+  "/icone16.jpg",
+  "/icone1.jpg",
+  "/icone3.jpg",
+  "/icone5.jpg",
+  "/icone9.jpg",
+  "/icone11.jpg",
 ]
 
 export function PerfilView({ aluno }: { aluno: Aluno }) {
@@ -189,7 +202,7 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
             className="gap-1 font-bold text-primary"
             onClick={() => router.push("/aluno/trilha-recompensas")}
           >
-           <XpShieldIcon className="size-3.5" />
+            <XpShieldIcon className="size-3.5" />
             Ver trilha
           </Button>
         </div>
@@ -246,20 +259,21 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
                 Avatar (usado se você ainda não tiver ícones da Trilha de Recompensas)
               </label>
               <div className="grid grid-cols-5 gap-2">
-                {AVATARES_DISPONIVEIS.map((av) => (
+                {AVATARES_DISPONIVEIS.map((av, i) => (
                   <button
                     key={av}
                     type="button"
                     onClick={() => setAvatarEdit(av)}
-                    aria-label={`Escolher avatar ${av}`}
+                    aria-label={`Escolher avatar ${i + 1}`}
                     className={cn(
-                      "grid aspect-square place-items-center rounded-2xl text-2xl transition",
+                      "grid aspect-square place-items-center overflow-hidden rounded-2xl p-1 transition",
                       avatarEdit === av
                         ? "bg-primary/15 ring-2 ring-primary"
                         : "bg-muted hover:bg-muted/70",
                     )}
                   >
-                    {av}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={av} alt="" className="size-full rounded-xl object-cover" />
                   </button>
                 ))}
               </div>

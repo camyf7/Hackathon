@@ -149,7 +149,7 @@
                 {venceu ? (
                 <div className="flex h-full flex-col items-center justify-center gap-3 py-2 text-center">
                     <p className="font-display text-lg font-extrabold text-brand-turquoise">
-                    Você chegou ao topo! 🎉
+                    Você chegou ao topo! 
                     </p>
                     <button
                     onClick={reiniciar}
