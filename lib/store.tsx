@@ -100,6 +100,7 @@ interface StoreCtx {
   // ações aluno
   responderExercicio: (alunoId: string, exercicioId: string) => { acertou: boolean; xp: number } | null
   fazerCheckin: (alunoId: string) => number | null
+  ganharXpExtra: (alunoId: string, xp: number) => void
   equiparBanner: (alunoId: string, bannerId: string) => void
   equiparCorNome: (alunoId: string, corId: string) => void
   solicitarResgate: (recompensaId: string, tipo: "aluno" | "squad", solicitanteId: string, turmaId: string) => void
@@ -447,6 +448,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return { ...next, squads: recalcSquads(next) }
     })
     return xpGanho
+  }, [])
+
+  const ganharXpExtra = useCallback((aid: string, xp: number) => {
+    setDb((prev) => {
+      const alunos = prev.alunos.map((a) =>
+        a.id === aid ? recalcAluno({ ...a, xp_total: a.xp_total + xp }, prev.banners, prev.cores_nome) : a,
+      )
+      const next = { ...prev, alunos }
+      return { ...next, squads: recalcSquads(next) }
+    })
   }, [])
 
   const equiparBanner = useCallback((aid: string, bannerId: string) => {
@@ -906,10 +917,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const alunos = prev.alunos.map((a) =>
         a.id === alunoId
           ? {
-              ...a,
-              tempo_tela_minutos_hoje: a.tempo_tela_minutos_hoje + 5,
-              tempo_tela_minutos_semana: a.tempo_tela_minutos_semana + 5,
-            }
+            ...a,
+            tempo_tela_minutos_hoje: a.tempo_tela_minutos_hoje + 5,
+            tempo_tela_minutos_semana: a.tempo_tela_minutos_semana + 5,
+          }
           : a,
       )
       return { ...prev, alunos }
@@ -946,6 +957,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removerTurma,
       responderExercicio,
       fazerCheckin,
+      ganharXpExtra,
       equiparBanner,
       equiparCorNome,
       solicitarResgate,
@@ -992,6 +1004,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removerTurma,
       responderExercicio,
       fazerCheckin,
+      ganharXpExtra,
       equiparBanner,
       solicitarResgate,
       resgatarRecompensaXp,

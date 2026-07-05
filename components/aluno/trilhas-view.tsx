@@ -7,7 +7,11 @@ import { Confetti } from "@/components/confetti"
 import { ExercicioDialog } from "./exercicio-dialog"
 import { CheckinCard } from "./checkin-card"
 import { cn } from "@/lib/utils"
+import { JogoEscada } from "./jogo-escada"
 import { META_TELA_DIARIA } from "@/lib/game"
+import { JogoCompletar } from "./jogo-completar"
+import { JogoMemoria } from "./jogo-memoria"
+import { JogoVerdadeiroFalso } from "./jogo-verdadeiro-falso"
 import {
   BookOpen,
   Calculator,
@@ -422,6 +426,20 @@ export function TrilhasView({ aluno }: { aluno: Aluno }) {
             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{tarefa.descricao}</p>
           )}
         </div>
+      )}
+
+      {/* Joguinho interativo — mecânica diferente por matéria */}
+      {trilha.nome.toLowerCase().includes("matem") && (
+        <JogoEscada alunoId={aluno.id} bloqueado={limiteAtingido} />
+      )}
+      {trilha.nome.toLowerCase().includes("portug") && (
+        <JogoCompletar alunoId={aluno.id} bloqueado={limiteAtingido} />
+      )}
+      {(trilha.nome.toLowerCase().includes("cien") || trilha.nome.toLowerCase().includes("ciênc")) && (
+        <JogoMemoria alunoId={aluno.id} bloqueado={limiteAtingido} />
+      )}
+      {trilha.nome.toLowerCase().includes("hist") && (
+        <JogoVerdadeiroFalso alunoId={aluno.id} bloqueado={limiteAtingido} />
       )}
 
       {trilhaAtiva && (
