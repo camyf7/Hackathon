@@ -64,12 +64,12 @@ export function PerfilView({ aluno }: { aluno: Aluno }) {
 
   return (
     <div className="space-y-4 pb-4">
-     <BannerPerfil banner={banner} avatar={aluno.avatar} nome={aluno.nome} corNomeClasse={corNome?.classe}>
+     <BannerPerfil banner={banner} avatar={aluno.avatar} iconeSelecionado={selectedIcon} nome={aluno.nome} corNomeClasse={corNome?.classe}>
         <div className="mt-3 flex items-center gap-2">
-          <span className="rounded-full bg-white/85 px-3 py-1 font-display text-sm font-extrabold text-foreground">
+          <span className="rounded-full bg-white/85 px-3 py-1 font-display text-sm font-extrabold text-black">
             Nível {aluno.nivel}
           </span>
-          <span className="rounded-full bg-white/85 px-3 py-1 text-sm font-bold text-foreground">
+          <span className="rounded-full bg-white/85 px-3 py-1 text-sm font-extrabold text-black">
             {turma?.nome}
           </span>
         </div>

@@ -3,6 +3,9 @@ import { cn } from "@/lib/utils";
 import { Flame } from "lucide-react";
 import type { Banner } from "@/lib/types";
 import { progressoNivel, xpNoNivel, XP_POR_NIVEL } from "@/lib/game";
+import { RewardIcon } from "@/components/rewards/reward-icon";
+import { temaDoIcone } from "@/lib/rewards"
+import type { IconeId } from "@/lib/rewards"
 
 
 export function Logo({ className }: { className?: string }) {
@@ -100,6 +103,7 @@ export function XpBar({
 export function BannerPerfil({
   banner,
   avatar,
+  iconeSelecionado,
   nome,
   corNomeClasse,
   className,
@@ -107,11 +111,15 @@ export function BannerPerfil({
 }: {
   banner: Banner | undefined
   avatar: string
+  iconeSelecionado?: string
   nome?: string
   corNomeClasse?: string
   className?: string
   children?: React.ReactNode
 }) {
+  const temIcone = iconeSelecionado && iconeSelecionado !== "default"
+  const tema = temIcone ? temaDoIcone(iconeSelecionado as IconeId) : null
+
   return (
     <div
       className={cn(
@@ -121,8 +129,13 @@ export function BannerPerfil({
       )}
     >
       <div className="flex items-center gap-3">
-        <span className="grid size-16 shrink-0 place-items-center rounded-2xl bg-white/85 text-4xl shadow-md">
-          {avatar}
+        <span
+          className={cn(
+            "grid size-16 shrink-0 place-items-center rounded-2xl bg-white/85 text-4xl shadow-md",
+            temIcone ? tema!.text : "text-foreground",
+          )}
+        >
+          {temIcone ? <RewardIcon icone={iconeSelecionado!} className="size-9" /> : avatar}
         </span>
         {nome && (
           <span

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { Check } from "lucide-react"
 import { RewardIcon } from "./reward-icon"
+import { temaDoIcone } from "@/lib/rewards"
+import type { IconeId } from "@/lib/rewards"
 
 interface ProfileIconPickerProps {
   ownedIcons: string[]
@@ -31,6 +33,7 @@ export function ProfileIconPicker({
       <div className="grid grid-cols-4 gap-3 sm:grid-cols-5">
         {ownedIcons.map((icone) => {
           const marcado = icone === escolhido
+          const tema = temaDoIcone(icone as IconeId)
           return (
             <button
               key={icone}
@@ -43,10 +46,8 @@ export function ProfileIconPicker({
               <motion.span
                 whileTap={{ scale: 0.92 }}
                 className={cn(
-                  "relative grid size-14 place-items-center rounded-2xl transition-colors",
-                  marcado
-                    ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2 ring-offset-card"
-                    : "bg-muted text-muted-foreground hover:bg-muted/70",
+                  "relative grid size-14 place-items-center rounded-2xl transition-colors ring-2 ring-offset-2 ring-offset-card",
+                  marcado ? cn(tema.bg, tema.text, tema.ring) : "bg-muted text-muted-foreground ring-transparent hover:bg-muted/70",
                 )}
               >
                 <RewardIcon icone={icone} className="size-6" />
