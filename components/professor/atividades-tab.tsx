@@ -30,12 +30,14 @@ import {
 import { cn } from "@/lib/utils"
 import { formatarDataCurta } from "@/lib/game"
 import {
+  AlertTriangle,
   CalendarClock,
   ClipboardList,
   Eye,
   FileText,
   Pencil,
   Plus,
+  RotateCcw,
   Trash2,
   Upload,
   X,
@@ -105,7 +107,7 @@ function dataUrlParaBlobUrl(dataUrl: string): string {
   return URL.createObjectURL(blob)
 }
 
-// Componente de visualização de PDF - CORRIGIDO
+// Componente de visualização de PDF
 function PDFPreview({ arquivo, onClose }: { arquivo: AnexoArquivo | null; onClose: () => void }) {
   const [loadError, setLoadError] = useState(false)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
@@ -204,6 +206,32 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
     setAnexosBucket(carregarAnexos())
   }, [])
 
+  // ------------------------------------------------------------------
+  // Associação de anexos a uma atividade recém-criada, sem "adivinhar"
+  // com setTimeout. Guardamos os anexos pendentes numa ref e, assim que
+  // `db.atividades` mudar, comparamos com a lista de ids anterior: o id
+  // que aparece e não existia antes é, com certeza, o da atividade nova.
+  // ------------------------------------------------------------------
+  const anexosPendentesRef = useRef<AnexoArquivo[] | null>(null)
+  const idsAnterioresRef = useRef<string[]>(db.atividades.map((a) => a.id))
+
+  useEffect(() => {
+    const idsAtuais = db.atividades.map((a) => a.id)
+    if (anexosPendentesRef.current) {
+      const novoId = idsAtuais.find((id) => !idsAnterioresRef.current.includes(id))
+      if (novoId) {
+        const pendentes = anexosPendentesRef.current
+        anexosPendentesRef.current = null
+        setAnexosBucket((prev) => {
+          const next = { ...prev, [novoId]: pendentes }
+          salvarAnexosBucket(next)
+          return next
+        })
+      }
+    }
+    idsAnterioresRef.current = idsAtuais
+  }, [db.atividades])
+
   const [open, setOpen] = useState(false)
   const [editando, setEditando] = useState<Atividade | null>(null)
   const [titulo, setTitulo] = useState("")
@@ -214,6 +242,7 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
   const [arquivos, setArquivos] = useState<AnexoArquivo[]>([])
   const [enviando, setEnviando] = useState(false)
   const [previewArquivo, setPreviewArquivo] = useState<AnexoArquivo | null>(null)
+  const [confirmandoExclusaoId, setConfirmandoExclusaoId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Atualiza os anexos quando editar uma atividade
@@ -312,33 +341,33 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
       persistirAnexos(editando.id)
       toast.success("Atividade atualizada!")
     } else {
+      // Guarda os anexos pendentes ANTES de criar - o useEffect acima os
+      // associa ao id certo assim que a atividade nova aparecer em db.atividades.
+      if (arquivos.length > 0) {
+        anexosPendentesRef.current = arquivos
+      }
       criarAtividade(turmaId, dados)
-      // Busca a atividade recém-criada para associar os anexos
-      setTimeout(() => {
-        const criadas = db.atividades
-          .filter((a) => a.turma_id === turmaId)
-          .sort((a, b) => (a.criada_em < b.criada_em ? 1 : -1))
-        const criada = criadas[0]
-        if (criada && arquivos.length > 0) {
-          persistirAnexos(criada.id)
-        }
-      }, 100)
       toast.success("Atividade lançada!")
     }
     setOpen(false)
   }
 
-  function excluirAtividade(id: string) {
-    if (confirm("Tem certeza que deseja remover esta atividade?")) {
-      removerAtividade(id)
-      setAnexosBucket((prev) => {
-        const next = { ...prev }
-        delete next[id]
-        salvarAnexosBucket(next)
-        return next
-      })
-      toast.success("Atividade removida")
-    }
+  function pedirExclusao(id: string) {
+    setConfirmandoExclusaoId(id)
+  }
+
+  function confirmarExclusao() {
+    const id = confirmandoExclusaoId
+    if (!id) return
+    removerAtividade(id)
+    setAnexosBucket((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      salvarAnexosBucket(next)
+      return next
+    })
+    toast.success("Atividade removida")
+    setConfirmandoExclusaoId(null)
   }
 
   return (
@@ -421,20 +450,19 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
                   >
                     <Pencil className="size-4" />
                   </button>
-                  {!encerrada && (
-                    <button
-                      onClick={() => {
-                        encerrarAtividade(at.id)
-                        toast.success("Atividade encerrada")
-                      }}
-                      aria-label="Encerrar atividade"
-                      className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
-                    >
-                      <XCircle className="size-4" />
-                    </button>
-                  )}
                   <button
-                    onClick={() => excluirAtividade(at.id)}
+                    onClick={() => {
+                      encerrarAtividade(at.id)
+                      toast.success(encerrada ? "Atividade reaberta" : "Atividade encerrada")
+                    }}
+                    aria-label={encerrada ? "Reabrir atividade" : "Encerrar atividade"}
+                    title={encerrada ? "Reabrir atividade" : "Encerrar atividade"}
+                    className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-muted"
+                  >
+                    {encerrada ? <RotateCcw className="size-4" /> : <XCircle className="size-4" />}
+                  </button>
+                  <button
+                    onClick={() => pedirExclusao(at.id)}
                     aria-label="Remover atividade"
                     className="grid size-8 place-items-center rounded-full text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
                   >
@@ -583,6 +611,40 @@ export function AtividadesTab({ turmaId }: { turmaId: string }) {
           <DialogFooter>
             <Button onClick={salvar} className="w-full rounded-2xl py-6 font-bold">
               <Plus className="size-4" /> {editando ? "Salvar alterações" : "Lançar atividade"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmação de exclusão (substitui o confirm() nativo do navegador) */}
+      <Dialog
+        open={!!confirmandoExclusaoId}
+        onOpenChange={(open) => !open && setConfirmandoExclusaoId(null)}
+      >
+        <DialogContent className="rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-display text-xl">
+              <AlertTriangle className="size-5 text-destructive" />
+              Remover atividade?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Essa ação não pode ser desfeita. Os anexos em PDF dessa atividade também serão apagados.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              onClick={() => setConfirmandoExclusaoId(null)}
+              className="flex-1 rounded-2xl bg-muted font-bold text-foreground hover:bg-muted/80"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmarExclusao}
+              className="flex-1 rounded-2xl bg-destructive font-bold text-destructive-foreground hover:bg-destructive/90"
+            >
+              <Trash2 className="size-4" /> Remover
             </Button>
           </DialogFooter>
         </DialogContent>

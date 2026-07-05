@@ -8,13 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   Dialog,
   DialogContent,
   DialogFooter,
@@ -24,23 +17,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Gift, Pencil, Plus, Power, Trash2 } from "lucide-react"
 import { toast } from "sonner"
-import type { CategoriaRecompensa, Recompensa } from "@/lib/types"
-
-const CATEGORIAS: { value: CategoriaRecompensa; label: string; emoji: string }[] = [
-  { value: "ponto_extra", label: "Ponto extra", emoji: "✏️" },
-  { value: "cinema", label: "Cinema", emoji: "🎬" },
-  { value: "dia_sem_uniforme", label: "Dia sem uniforme", emoji: "👕" },
-  { value: "certificado", label: "Certificado", emoji: "📜" },
-  { value: "material", label: "Material escolar", emoji: "🎒" },
-]
-
-function emojiCategoria(categoria: CategoriaRecompensa) {
-  return CATEGORIAS.find((c) => c.value === categoria)?.emoji ?? "🎁"
-}
-
-function labelCategoria(categoria: CategoriaRecompensa) {
-  return CATEGORIAS.find((c) => c.value === categoria)?.label ?? categoria
-}
+import type { Recompensa } from "@/lib/types"
 
 export function RecompensasTab({ turmaId }: { turmaId: string }) {
   const { db, criarRecompensa, atualizarRecompensa, alternarStatusRecompensa, removerRecompensa } = useStore()
@@ -53,7 +30,7 @@ export function RecompensasTab({ turmaId }: { turmaId: string }) {
   const [editando, setEditando] = useState<Recompensa | null>(null)
   const [nome, setNome] = useState("")
   const [descricao, setDescricao] = useState("")
-  const [categoria, setCategoria] = useState<CategoriaRecompensa>("ponto_extra")
+  const [categoria, setCategoria] = useState("")
   const [custoXp, setCustoXp] = useState("500")
   const [quantidade, setQuantidade] = useState("10")
 
@@ -61,7 +38,7 @@ export function RecompensasTab({ turmaId }: { turmaId: string }) {
     setEditando(null)
     setNome("")
     setDescricao("")
-    setCategoria("ponto_extra")
+    setCategoria("")
     setCustoXp("500")
     setQuantidade("10")
     setOpen(true)
@@ -71,7 +48,7 @@ export function RecompensasTab({ turmaId }: { turmaId: string }) {
     setEditando(r)
     setNome(r.nome)
     setDescricao(r.descricao)
-    setCategoria(r.categoria)
+    setCategoria(r.categoria ?? "")
     setCustoXp(String(r.custo_xp))
     setQuantidade(String(r.quantidade))
     setOpen(true)
@@ -85,7 +62,7 @@ export function RecompensasTab({ turmaId }: { turmaId: string }) {
     const dados = {
       nome: nome.trim(),
       descricao: descricao.trim(),
-      categoria,
+      categoria: categoria.trim(),
       imagem: null,
       custo_xp: Number(custoXp) || 0,
       quantidade: Number(quantidade) || 0,
@@ -119,11 +96,13 @@ export function RecompensasTab({ turmaId }: { turmaId: string }) {
             <Card key={r.id} className={cn("p-4", inativa && "opacity-60")}>
               <div className="flex items-start gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-gold/20 text-2xl">
-                  {emojiCategoria(r.categoria)}
+                  🎁
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-display font-extrabold">{r.nome}</p>
-                  <p className="text-xs font-bold text-muted-foreground">{labelCategoria(r.categoria)}</p>
+                  {r.categoria && (
+                    <p className="text-xs font-bold text-muted-foreground">{r.categoria}</p>
+                  )}
                 </div>
               </div>
               {r.descricao && (
@@ -214,19 +193,14 @@ export function RecompensasTab({ turmaId }: { turmaId: string }) {
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Categoria</Label>
-              <Select value={categoria} onValueChange={(v) => setCategoria(v as CategoriaRecompensa)}>
-                <SelectTrigger className="rounded-2xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIAS.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.emoji} {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="cat-rec">Categoria (opcional)</Label>
+              <Input
+                id="cat-rec"
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                placeholder="Ex: Bônus, Passeio, Privilégio…"
+                className="rounded-2xl"
+              />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
